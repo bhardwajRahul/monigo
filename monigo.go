@@ -49,6 +49,9 @@ type Monigo struct {
 	MaxMemoryUsage          float64   `json:"max_memory_usage"`     // Default is 95%, You can set it to 100% if you want to monitor 100% Memory usage
 	MaxGoRoutines           int       `json:"max_go_routines"`      // Default is 100, You can set it to any number based on your service
 	CustomBaseAPIPath       string    `json:"custom_base_api_path"` // Custom base API path for integration with existing routers
+	Headless                bool      `json:"headless"`             // If true, dashboard won't be started
+	SamplingRate            int       `json:"sampling_rate"`        // Trace 1 in N calls
+	StorageType             string    `json:"storage_type"`         // "disk" or "memory"
 
 	// Security and Middleware Configuration
 	DashboardMiddleware []func(http.Handler) http.Handler `json:"-"` // Middleware chain for dashboard access (static files)
@@ -224,6 +227,13 @@ func (m *Monigo) Initialize() error {
 	)
 
 	// Initialize storage to ensure it's available for API calls
+	if m.StorageType != "" {
+		timeseries.SetStorageType(m.StorageType)
+	}
+	if m.SamplingRate > 0 {
+		core.SetSamplingRate(m.SamplingRate)
+	}
+
 	_, err := timeseries.GetStorageInstance()
 	if err != nil {
 		log.Printf("[MoniGo] Warning: failed to initialize storage: %v", err)
@@ -283,6 +293,13 @@ func (m *Monigo) Start() error {
 		m.DataRetentionPeriod,
 	)
 
+	if m.Headless {
+		log.Println("[MoniGo] Running in headless mode. Dashboard disabled.")
+		// Keep the process alive if only monigo is running, or just return nil
+		// Since this is embedded, we usually just return nil anyway
+		return nil
+	}
+
 	if err := StartDashboardWithCustomPath(m.DashboardPort, m.CustomBaseAPIPath); err != nil {
 		return fmt.Errorf("[MoniGo] error starting the dashboard: %v", err)
 	}
@@ -298,6 +315,12 @@ func (m *Monigo) GetGoRoutinesStats() models.GoRoutinesStatistic {
 // This is the original function maintained for backward compatibility
 func TraceFunction(f func()) {
 	core.TraceFunction(f)
+}
+
+// SetSamplingRate sets the sampling rate for function tracing
+// For example, a rate of 100 means 1 in 100 calls will be profiled
+func SetSamplingRate(rate int) {
+	core.SetSamplingRate(rate)
 }
 
 // TraceFunctionWithArgs traces a function with parameters and captures the metrics
