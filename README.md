@@ -227,10 +227,6 @@ See [`example/router-integration/`](example/router-integration/) for complete ex
 | `models` | Shared data structures |
 | `api` | HTTP handlers for all endpoints |
 
-## Production Readiness Assessment
-
-> This section is an honest evaluation of MoniGo's readiness for production use, written from the perspective of a distributed systems engineer.
-
 ### What Works Well
 
 - **Zero-dependency embedding** - Single `go get`, no sidecar, no agent
