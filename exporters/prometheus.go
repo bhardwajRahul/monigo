@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"context"
 	"sync"
 
 	"github.com/iyashjayesh/monigo/core"
@@ -15,8 +16,6 @@ type MonigoCollector struct {
 
 	diskReadBytes  *prometheus.Desc
 	diskWriteBytes *prometheus.Desc
-
-	requestCount *prometheus.Desc
 }
 
 var (
@@ -53,11 +52,6 @@ func NewMonigoCollector() *MonigoCollector {
 				"Total bytes written to disk.",
 				nil, nil,
 			),
-			requestCount: prometheus.NewDesc(
-				"monigo_http_requests_total",
-				"Total number of HTTP requests processed by MoniGo traced functions.",
-				nil, nil,
-			),
 		}
 	})
 	return collector
@@ -71,21 +65,20 @@ func (c *MonigoCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.goroutines
 	ch <- c.diskReadBytes
 	ch <- c.diskWriteBytes
-	ch <- c.requestCount
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (c *MonigoCollector) Collect(ch chan<- prometheus.Metric) {
-	stats := core.GetServiceStats()
+	stats := core.GetServiceStats(context.Background())
 
-	// CPU Load — use raw float64 values directly, no string parsing
+	// CPU Load - use raw float64 values directly, no string parsing
 	ch <- prometheus.MustNewConstMetric(
 		c.cpuUsage,
 		prometheus.GaugeValue,
 		stats.LoadStatistics.SystemCPULoadRaw,
 	)
 
-	// Memory — use raw bytes value directly
+	// Memory - use raw bytes value directly
 	ch <- prometheus.MustNewConstMetric(
 		c.memoryUsage,
 		prometheus.GaugeValue,

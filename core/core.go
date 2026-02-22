@@ -1,14 +1,15 @@
 package core
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"runtime"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/iyashjayesh/monigo/common"
+	"github.com/iyashjayesh/monigo/internal/logger"
 	"github.com/iyashjayesh/monigo/models"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
@@ -16,8 +17,7 @@ import (
 )
 
 // GetServiceStats collects statistics related to service and system performance.
-func GetServiceStats() models.ServiceStats {
-
+func GetServiceStats(_ context.Context) models.ServiceStats {
 	var stats models.ServiceStats
 	stats.CoreStatistics = GetCoreStatistics()
 
@@ -163,18 +163,18 @@ func GetCPUStatistics() models.CPUStatistics {
 
 	sysCPUPercent, err := GetCPUPrecent()
 	if err != nil {
-		log.Printf("[MoniGo] Error fetching system CPU percent: %v", err)
+		logger.Log.Error("Error fetching system CPU percent", "error", err)
 		sysCPUPercent = 0
 	}
 	memInfo, err := GetVirtualMemoryStats()
 	if err != nil {
-		log.Printf("[MoniGo] Error fetching virtual memory stats: %v", err)
+		logger.Log.Error("Error fetching virtual memory stats", "error", err)
 		memInfo = mem.VirtualMemoryStat{}
 	}
 
 	procCPUPercent, _, err := getProcessUsage(common.GetProcessObject(), &memInfo)
 	if err != nil {
-		log.Printf("[MoniGo] Error fetching process usage: %v\n", err)
+		logger.Log.Error("Error fetching process usage", "error", err)
 		procCPUPercent = 0
 	}
 
@@ -200,13 +200,13 @@ func GetMemoryStatistics() models.MemoryStatistics {
 
 	memInfo, err := mem.VirtualMemory() // Fetcing system memory statistics
 	if err != nil {
-		log.Printf("[MoniGo] Error fetching virtual memory info: %v", err)
+		logger.Log.Error("Error fetching virtual memory info", "error", err)
 		return models.MemoryStatistics{}
 	}
 
 	swapInfo, err := mem.SwapMemory() // Fetching swap memory statistics
 	if err != nil {
-		log.Printf("[MoniGo] Error fetching swap memory info: %v", err)
+		logger.Log.Error("Error fetching swap memory info", "error", err)
 		// valid SwapMemory struct to prevent nil pointer later if used, or continue with zeroed swapInfo
 		swapInfo = &mem.SwapMemoryStat{}
 	}
@@ -272,7 +272,7 @@ func GetNetworkIO() (float64, float64) {
 	// Fetch network I/O statistics
 	netIO, err := net.IOCounters(true)
 	if err != nil {
-		log.Printf("[MoniGo] Error fetching network I/O statistics: %v", err)
+		logger.Log.Error("Error fetching network I/O statistics", "error", err)
 		return 0, 0
 	}
 
@@ -320,9 +320,6 @@ func GetServiceHealth(serviceStats *models.ServiceStats) models.ServiceHealth {
 	var healthData models.ServiceHealth
 	healthData.ServiceHealth.Percent = healthInPercent.ServiceHealth.Percentage
 	healthData.SystemHealth.Percent = healthInPercent.SystemHealth.Percentage
-
-	// serviceHealth := healthData.ServiceHealth.Percent
-	// systemHealth := healthData.SystemHealth.Percent
 
 	healthData.ServiceHealth = models.Health{
 		Percent: healthData.ServiceHealth.Percent,
