@@ -9,6 +9,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![GitHub last commit](https://img.shields.io/github/last-commit/iyashjayesh/monigo)
 ![Tests](https://github.com/iyashjayesh/monigo/actions/workflows/test.yml/badge.svg)
+![Visitors](https://api.visitorbadge.io/api/visitors?path=iyashjayesh%2Fmonigo%20&countColor=%23263759&style=flat)
 
 **MoniGo** is a lightweight, embeddable observability library for Go services. It collects runtime metrics (CPU, memory, goroutines, disk/network I/O), traces function execution with pprof profiling, stores time-series data, and serves a real-time dashboard - all from a single `go get`.
 
