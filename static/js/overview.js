@@ -237,6 +237,63 @@ document.addEventListener('DOMContentLoaded', () => {
         return out;
     }
 
+    /*
+     * Per-tile history, kept in the page.
+     *
+     * The stored series is the authoritative one, but it is flushed on
+     * DataPointsSyncFrequency -- five minutes by default -- so asking storage
+     * every fifteen seconds returns the same points over and over. These tiles
+     * want "the last few minutes as observed", which is exactly what the poll
+     * loop already has in hand. The chart below asks storage, because it wants
+     * history that predates this page load.
+     *
+     * Capped, and lost on reload: it is a shape, not a record.
+     */
+    const hist = { cpu: [], heap: [], gor: [], gc: [] };
+    const HIST_CAP = 40;
+
+    function pushHist(key, value) {
+        if (typeof value !== 'number' || !isFinite(value)) {
+            return;
+        }
+        hist[key].push(value);
+        if (hist[key].length > HIST_CAP) {
+            hist[key].shift();
+        }
+    }
+
+    // Writes into the two <path> elements the tile already carries, rather than
+    // replacing the SVG, so nothing reflows on each poll.
+    function drawSpark(prefix, values) {
+        const area = document.getElementById(prefix + '-area');
+        const line = document.getElementById(prefix + '-line');
+        if (!area || !line) {
+            return;
+        }
+        const pts = values.filter(v => typeof v === 'number' && isFinite(v));
+        if (pts.length < 2) {
+            area.removeAttribute('d');
+            line.removeAttribute('d');
+            return;
+        }
+        const W = 240;
+        const H = 44;
+        const lo = Math.min(...pts);
+        const hi = Math.max(...pts);
+        const span = (hi - lo) || 1;
+        const d = pts.map((v, i) => {
+            const x = (i / (pts.length - 1)) * W;
+            const y = H - 4 - ((v - lo) / span) * (H - 8);
+            return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+        }).join(' ');
+        line.setAttribute('d', d);
+        area.setAttribute('d', d + ` L${W} ${H} L0 ${H} Z`);
+        // Colour comes from CSS: each tile sets --mg-series, and .mg-spark__line
+        // / .mg-spark__area read it. Setting stroke here as a presentation
+        // attribute would lose to that rule anyway, and would be a second place
+        // to keep the palette in step.
+    }
+
     function renderKPIs(m) {
         const raw = rawRecords(m);
 
@@ -268,6 +325,55 @@ document.addEventListener('DOMContentLoaded', () => {
         // num_gc is a count, not a byte metric, so it is not scaled by 1024.
         const cycles = num(raw.num_gc, 'num_gc');
         set('mg-kpi-gc-cycles', isFinite(cycles) ? Math.round(cycles) + ' cycles' : '');
+
+        pushHist('cpu', cpu);
+        pushHist('heap', isFinite(inuse) ? inuse / 1024 : NaN);
+        pushHist('gor', typeof goroutines === 'number' ? goroutines : NaN);
+        pushHist('gc', gc);
+
+        drawSpark('mg-kpi-cpu', hist.cpu);
+        drawSpark('mg-kpi-heap', hist.heap);
+        drawSpark('mg-kpi-gor', hist.gor);
+        drawSpark('mg-kpi-gc', hist.gc);
+
+        // A delta needs something to compare against; five polls is ~75s.
+        const deltaEl = document.getElementById('mg-kpi-cpu-delta');
+        if (deltaEl) {
+            if (hist.cpu.length > 5) {
+                const d = hist.cpu[hist.cpu.length - 1] - hist.cpu[hist.cpu.length - 6];
+                deltaEl.textContent = (d >= 0 ? '+' : '') + d.toFixed(3);
+            } else {
+                deltaEl.textContent = '';
+            }
+        }
+
+        renderLeakBanner(m.goroutine_leak_report);
+    }
+
+    /*
+     * The leak verdict is surfaced here as well as on the Goroutines page. It
+     * is the one finding an operator should not have to go looking for, and it
+     * only appears when there is something to say -- a banner that is always
+     * present stops being read.
+     */
+    function renderLeakBanner(report) {
+        const box = document.getElementById('mg-leak');
+        if (!box) {
+            return;
+        }
+        if (!report || !report.leak_suspected) {
+            box.hidden = true;
+            box.textContent = '';
+            return;
+        }
+        box.hidden = false;
+        box.className = 'mg-note mg-note--warn';
+        box.innerHTML =
+            '<svg class="mg-icon" aria-hidden="true"><use href="#i-alert-triangle"></use></svg>' +
+            '<span></span>' +
+            '<a class="mg-note__act" href="./go-routines-stats.html">Inspect</a>';
+        box.querySelector('span').textContent =
+            report.message || 'Goroutine leak suspected.';
     }
 
     // -------------------------------------------------------- heap panel
@@ -347,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // -------------------------------------------------------------- polling
 
     function poll() {
-        Promise.all([
+        return Promise.all([
             authenticatedFetch('/monigo/api/v1/metrics').then(r => {
                 if (!r.ok) {
                     throw new Error('metrics HTTP ' + r.status);
@@ -367,15 +473,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 stampNow();
             })
-            .catch(markStale);
+            .catch(err => {
+                markStale(err);
+                // Rethrow: MG.Poll decides stale-vs-down from this.
+                throw err;
+            });
     }
 
     function startPolling() {
-        stopPolling();
-        // 15s: fast enough that the LIVE badge is honest, slow enough that the
-        // observer effect stays negligible. The old behaviour was a full page
-        // reload every 300s.
-        state.timer = setInterval(poll, 15000);
+        // MG.Poll owns the interval, the visibility check and the ok/stale/down
+        // escalation, so every page reports a failure the same way. poll()
+        // returns its promise; a rejection is what tells MG the server stopped
+        // answering.
+        MG.Poll.start(poll, 15000);
     }
 
     function stopPolling() {
@@ -575,10 +685,30 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        /*
+         * Each series is drawn differently on purpose, so the three stay
+         * separable where they cross -- which is the whole point of putting
+         * them on one axis. Only service cpu carries an area fill: three
+         * translucent fills over one another turn the plot to mud, and cpu is
+         * the series the eye should land on first. Goroutines is dashed
+         * because it is a step count rather than a continuous quantity.
+         */
         const series = [
-            { key: 'cpu', label: 'service cpu', values: cpu, color: cssVar('--series-1'), fmt: v => v.toFixed(3) + '%' },
-            { key: 'heap', label: 'heap inuse', values: heap, color: cssVar('--series-2'), fmt: v => v.toFixed(2) + ' MB' },
-            { key: 'gor', label: 'goroutines', values: gor, color: cssVar('--series-3'), fmt: v => String(Math.round(v)) },
+            {
+                key: 'cpu', label: 'service cpu', values: cpu,
+                color: cssVar('--series-1'), width: 1.8, area: true,
+                fmt: v => v.toFixed(3) + '%',
+            },
+            {
+                key: 'heap', label: 'heap inuse', values: heap,
+                color: cssVar('--series-2'), width: 1.6, area: false,
+                fmt: v => v.toFixed(2) + ' MB',
+            },
+            {
+                key: 'gor', label: 'goroutines', values: gor,
+                color: cssVar('--series-3'), width: 1.4, area: false, dash: '4 3',
+                fmt: v => String(Math.round(v)),
+            },
         ];
 
         // Fewer than ~6 samples reads as a polyline, not a trend, so the points
@@ -586,10 +716,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sparse = sampleCount < 6;
         const grid = cssVar('--grid-line');
 
-        const gridLines = [0, 0.25, 0.5, 0.75, 1]
+        const gridLines = [0, 0.25, 0.5, 0.75]
             .map(f => {
                 const y = (PLOT.pad + f * (PLOT.h - PLOT.pad * 2)).toFixed(1);
-                return `<line x1="0" y1="${y}" x2="${PLOT.w}" y2="${y}" stroke="${grid}" stroke-width="1"/>`;
+                return `<line x1="0" y1="${y}" x2="${PLOT.w}" y2="${y}" ` +
+                    `stroke="${grid}" stroke-width="1" opacity="0.6"/>`;
             })
             .join('');
 
@@ -599,10 +730,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return '';
             }
             let out = '';
-            if (!sparse) {
-                out += `<path d="${areaPath(sr.values)}" fill="${sr.color}" opacity="0.12"/>`;
+            if (sr.area && !sparse) {
+                out += `<path d="${areaPath(sr.values)}" fill="${sr.color}" opacity="0.10"/>`;
             }
-            out += `<path d="${d}" fill="none" stroke="${sr.color}" stroke-width="1.6" ` +
+            out += `<path d="${d}" fill="none" stroke="${sr.color}" stroke-width="${sr.width}" ` +
+                (sr.dash ? `stroke-dasharray="${sr.dash}" ` : '') +
                 `vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
             if (sparse) {
                 // pointsOf yields y === null where the sample is missing, so a

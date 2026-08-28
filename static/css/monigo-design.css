@@ -579,3 +579,106 @@ body.mg a:hover { text-decoration: underline; }
  * mockup's own renderers, which this dashboard does not use -- so they are
  * removed rather than renamed.
  */
+
+/* ------------------------------------------------------------ connection state
+ *
+ * A dashboard that keeps showing numbers after the process stops answering is
+ * worse than one that shows nothing: the numbers look current. The banner says
+ * what happened and when the reading is from, and the content dims so it
+ * cannot be read as live.
+ */
+
+.mg-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  font-size: var(--t-body);
+  border-bottom: 1px solid transparent;
+}
+
+.mg-note[hidden] {
+  display: none;
+}
+
+.mg-note--bad {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--bad) 34%, transparent);
+  color: var(--bad);
+}
+
+.mg-note--warn {
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--warn) 34%, transparent);
+  color: var(--warn);
+}
+
+.mg-note .mg-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.mg-note b {
+  font-weight: 600;
+}
+
+.mg-note__act {
+  margin-left: auto;
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  border-radius: var(--r-sm);
+  background: none;
+  color: inherit;
+  font: 500 var(--t-mono-s) var(--mono);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.mg-note__act:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.mg-content.is-stale .mg-card,
+.mg-content.is-stale .mg-tile,
+.mg-content.is-stale .mg-panel {
+  opacity: .55;
+}
+
+.mg-dot.is-stale {
+  background: var(--warn);
+}
+
+.mg-dot.is-down {
+  background: var(--bad);
+  animation: mg-pulse 1.4s infinite;
+}
+
+/* ------------------------------------------- tinted chips in the light theme
+ *
+ * Two components put coloured text on a tint of its own colour: the service
+ * avatar (accent on accent) and the LIVE pill (ok on ok). That reads well on a
+ * dark ground, where a tint darkens toward the panel and contrast holds. On a
+ * light ground the same tint moves the background toward the text instead, and
+ * both fall under 4.5:1 -- measured 3.93 and 3.91.
+ *
+ * The tint is weakened here rather than the palette darkened, because --acc and
+ * --ok are used in many other places that are already correct, and a token
+ * change to fix two chips would move all of them.
+ */
+body[data-theme="light"] .mg-svc__avatar {
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+}
+
+body[data-theme="light"] .mg-live {
+  background: color-mix(in srgb, var(--ok) 9%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 42%, transparent);
+}
+
+/* The active navigation item is the third instance of the same pattern:
+   accent text on a 15% accent tint, 4.31:1 on a light ground. The inset bar
+   keeps carrying the selection, so weakening the tint costs nothing. */
+body[data-theme="light"] .mg-nav a.is-active {
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+}

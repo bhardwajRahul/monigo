@@ -261,6 +261,177 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fillShell();
+
+    /* ================================================================ MG
+     *
+     * Shared runtime. Everything below is chrome that every page needs and no
+     * page should re-implement: connection state, the as-of stamp, the
+     * staleness banner, and the poll loop that drives them.
+     *
+     * Exposed on window.MG so the page renderers can drive it without each
+     * keeping its own setInterval and its own idea of whether the server is
+     * answering.
+     */
+
+    const status = { state: 'ok', fails: 0, lastGood: null };
+
+    function clockUTC(d) {
+        return (d || new Date()).toISOString().slice(11, 19) + 'Z';
+    }
+
+    function renderStatus() {
+        const dot = document.getElementById('mg-status-dot');
+        if (dot) {
+            dot.classList.remove('is-stale', 'is-down');
+            if (status.state !== 'ok') {
+                dot.classList.add(status.state === 'down' ? 'is-down' : 'is-stale');
+            }
+            dot.title = status.state === 'ok' ? 'Connected'
+                : status.state === 'down' ? 'Lost connection to the service'
+                    : 'Data is stale';
+        }
+
+        // Dim the numbers while a poll is failing, so a stale reading cannot be
+        // mistaken for a current one.
+        const content = document.getElementById('mg-content');
+        if (content) {
+            content.classList.toggle('is-stale', status.state !== 'ok');
+        }
+
+        const banner = document.getElementById('mg-banner');
+        if (!banner) {
+            return;
+        }
+        if (status.state === 'ok') {
+            banner.textContent = '';
+            banner.hidden = true;
+            return;
+        }
+        banner.hidden = false;
+        banner.className = 'mg-note ' + (status.state === 'down' ? 'mg-note--bad' : 'mg-note--warn');
+        const since = status.lastGood ? clockUTC(status.lastGood) : 'never';
+        banner.innerHTML =
+            '<svg class="mg-icon" aria-hidden="true"><use href="#i-alert-triangle"></use></svg>' +
+            '<span><b>' +
+            (status.state === 'down' ? 'No response from the service.' : 'Data is stale.') +
+            '</b> Showing the last snapshot from ' + since + '. ' +
+            (status.fails > 1 ? status.fails + ' failed polls.' : 'Retrying…') +
+            '</span><button type="button" class="mg-note__act" id="mg-retry">Retry now</button>';
+        const retry = document.getElementById('mg-retry');
+        if (retry) {
+            retry.addEventListener('click', () => Poll.tick(true));
+        }
+    }
+
+    function markOk() {
+        status.fails = 0;
+        status.lastGood = new Date();
+        if (status.state !== 'ok') {
+            status.state = 'ok';
+        }
+        renderStatus();
+        const el = document.getElementById('mg-asof');
+        if (el) {
+            el.textContent = 'as of ' + clockUTC(status.lastGood);
+        }
+    }
+
+    function markFail(err) {
+        status.fails++;
+        // One miss is a blip. Escalating to "down" only after a retry has also
+        // failed keeps a single dropped poll from flashing an alarm.
+        status.state = status.fails >= 2 ? 'down' : 'stale';
+        renderStatus();
+        if (err) {
+            console.error('[monigo] poll failed:', err);
+        }
+    }
+
+    const Poll = {
+        fn: null,
+        interval: 15000,
+        timer: null,
+        running: true,
+
+        start(fn, interval) {
+            this.fn = fn;
+            this.interval = interval || 15000;
+            this.tick(true);
+            this.timer = setInterval(() => Poll.tick(false), this.interval);
+
+            const btn = document.getElementById('mg-live');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    Poll.running = !Poll.running;
+                    btn.classList.toggle('is-live', Poll.running);
+                    btn.setAttribute('aria-pressed', String(Poll.running));
+                    const label = document.getElementById('mg-live-label');
+                    if (label) {
+                        label.textContent = Poll.running ? 'LIVE' : 'PAUSED';
+                    }
+                    if (Poll.running) {
+                        Poll.tick(true);
+                    }
+                });
+            }
+
+            // Polling a hidden tab spends the profiled process's CPU on nothing.
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && Poll.running) {
+                    Poll.tick(false);
+                }
+            });
+        },
+
+        tick(force) {
+            if (!this.fn) {
+                return;
+            }
+            if (!force && (!this.running || document.hidden)) {
+                return;
+            }
+            Promise.resolve()
+                .then(() => this.fn())
+                .then(() => markOk())
+                .catch(err => markFail(err));
+        },
+    };
+
+    // Inline SVG sparkline. Values are normalised across their own range, so
+    // the shape is readable whatever the units.
+    function sparkline(values, opts) {
+        opts = opts || {};
+        const w = opts.width || 240;
+        const h = opts.height || 44;
+        const stroke = opts.stroke || 'var(--acc)';
+        const pts = (values || []).filter(v => typeof v === 'number' && isFinite(v));
+        if (pts.length < 2) {
+            return '<svg class="mg-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none"></svg>';
+        }
+        const lo = Math.min(...pts);
+        const hi = Math.max(...pts);
+        const span = (hi - lo) || 1;
+        const d = pts.map((v, i) => {
+            const x = (i / (pts.length - 1)) * w;
+            const y = h - 4 - ((v - lo) / span) * (h - 8);
+            return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+        }).join(' ');
+        return '<svg class="mg-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+            '<path d="' + d + ' L' + w + ' ' + h + ' L0 ' + h + ' Z" fill="' + stroke + '" opacity=".14"></path>' +
+            '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="1.6" ' +
+            'vector-effect="non-scaling-stroke"></path></svg>';
+    }
+
+    window.MG = {
+        Poll,
+        status,
+        sparkline,
+        clockUTC,
+        markOk,
+        markFail,
+        authenticatedFetch,
+    };
+
     fillNavBadges();
 
     // Fetch metrics on load
