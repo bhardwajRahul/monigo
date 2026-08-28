@@ -257,9 +257,11 @@
             <span data-tick="0"></span><span data-tick="1"></span><span data-tick="2"></span><span data-tick="3"></span><span>now</span>
           </div>
           <div class="mg-plot__empty" id="mg-runtime-load-empty" hidden>
-            <svg class="mg-icon" aria-hidden="true"><use href="#i-alert-triangle"></use></svg>
+            <!-- No warning icon on the waiting state: a process that started a
+                 minute ago has no history yet, which is normal rather than
+                 wrong. The icon stays with the failure message below. -->
             <span id="mg-runtime-load-short">Not enough history yet. Samples are written every <b id="mg-sync-freq">5m</b>.</span>
-            <span id="mg-runtime-load-failed" hidden>Could not load the series. Check the console for the response status.</span>
+            <span id="mg-runtime-load-failed" hidden><svg class="mg-icon" aria-hidden="true"><use href="#i-alert-triangle"></use></svg> Could not load the series. Check the console for the response status.</span>
           </div>
         </div>
         <div class="mg-plot__gutter" aria-hidden="true"></div>

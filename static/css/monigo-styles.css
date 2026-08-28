@@ -1032,3 +1032,38 @@
 .mg-plot__at {
     color: var(--ink-subtle);
 }
+
+/* The waiting message sits over the grid, so it needs a line-box of its own
+   rather than the centred column it used when the plot was blank. */
+.mg-plot__empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-2);
+    padding: 0 var(--s-6);
+    text-align: center;
+    pointer-events: none;
+}
+
+.mg-plot__empty[hidden] {
+    display: none;
+}
+
+.mg-plot__empty > span {
+    max-width: 42ch;
+    text-wrap: pretty;
+}
+
+#mg-runtime-load-failed {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    color: var(--crit-text);
+}
+
+#mg-runtime-load-failed[hidden] {
+    display: none;
+}

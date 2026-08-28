@@ -646,8 +646,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (empty) {
                 empty.hidden = false;
             }
+            if (short) {
+                // How far along it is, rather than only that it is not ready.
+                // Waiting for the first samples is the ordinary state of a
+                // process that just started, not a fault.
+                const have = rows.length;
+                short.innerHTML = '';
+                short.appendChild(document.createTextNode(
+                    have === 0
+                        ? 'No samples stored yet. '
+                        : `${have} of 2 samples so far. `));
+                const b = document.createElement('b');
+                b.textContent = state.syncFrequency;
+                short.appendChild(document.createTextNode('One is written every '));
+                short.appendChild(b);
+                short.appendChild(document.createTextNode(
+                    ', so a line appears once there are two.'));
+            }
+            // The grid still draws, so the card reads as a chart waiting for
+            // data rather than as an empty box.
             if (canvas) {
-                canvas.style.visibility = 'hidden';
+                canvas.style.visibility = '';
+                drawEmptyGrid(canvas);
             }
             return;
         }
@@ -691,6 +711,23 @@ document.addEventListener('DOMContentLoaded', () => {
      * tiles directly above, and on the crosshair readout.
      */
     const PLOT = { w: 600, h: 200, pad: 10 };
+
+    // The same grid the plot draws, with no series on it. Keeping the card the
+    // shape of a chart while it waits is less jarring than a void, and it makes
+    // the axis-free design legible before there is anything to read.
+    function drawEmptyGrid(el) {
+        const grid = cssVar('--grid-line');
+        const lines = [0, 0.25, 0.5, 0.75]
+            .map(f => {
+                const y = (PLOT.pad + f * (PLOT.h - PLOT.pad * 2)).toFixed(1);
+                return `<line x1="0" y1="${y}" x2="${PLOT.w}" y2="${y}" ` +
+                    `stroke="${grid}" stroke-width="1" opacity="0.45"/>`;
+            })
+            .join('');
+        el.innerHTML =
+            `<svg class="mg-plot__svg" viewBox="0 0 ${PLOT.w} ${PLOT.h}" ` +
+            `preserveAspectRatio="none" aria-hidden="true">${lines}</svg>`;
+    }
 
     function renderChart(el, times, cpu, heap, gor, sampleCount) {
         if (!el) {
