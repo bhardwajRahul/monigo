@@ -1,6 +1,7 @@
 package monigo
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -355,5 +356,92 @@ func TestEmbeddedPayloadHasNoJunkFiles(t *testing.T) {
 		sort.Strings(found)
 		t.Errorf("junk files embedded into the binary:\n  %s\n\nDelete them and add the pattern to .gitignore.",
 			strings.Join(found, "\n  "))
+	}
+}
+
+// The dashboard is a browser page. It cannot be trusted to assert its own
+// privilege level, because anything it sends, any visitor can send.
+//
+// It previously did exactly that: authenticatedFetch attached a privileged
+// role header and a hardcoded shared secret to every request that carried no
+// API key, both copied from example/security-examples/custom-auth -- whose
+// auth function grants access for precisely those two credentials. A consumer
+// following that documented example got a dashboard that satisfied their own
+// auth check on its own say-so.
+//
+// The same block was copy-pasted into all six page scripts, so this checks
+// every embedded file rather than the one it was noticed in.
+func TestDashboardAssertsNoPrivilegeOfItsOwn(t *testing.T) {
+	banned := map[string]string{
+		"X-User-Role":         "a self-asserted role header",
+		"monigo-admin-secret": "a hardcoded shared secret from the custom-auth example",
+		"MoniGo-Admin":        "a spoofed User-Agent used as a credential",
+	}
+
+	err := fs.WalkDir(staticFiles, "static", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if !strings.HasSuffix(p, ".js") && !strings.HasSuffix(p, ".html") {
+			return nil
+		}
+		// Vendored template code is not ours and never had this.
+		if strings.Contains(p, "/core/") {
+			return nil
+		}
+		body, err := staticFiles.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		for needle, what := range banned {
+			if bytes.Contains(body, []byte(needle)) {
+				t.Errorf("%s contains %q -- %s.\n"+
+					"The dashboard must not send a credential that grants it access; "+
+					"custom authentication belongs in the middleware, not in page "+
+					"JavaScript, because a browser cannot vouch for itself.",
+					p, needle, what)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking embedded files: %v", err)
+	}
+}
+
+// An API key in a query string is recorded in browser history, sent in the
+// Referer header to any external link the page carries, and written to every
+// access log between the browser and the process. APIKeyMiddleware accepts an
+// X-API-Key header too (monigo.go), so the header costs nothing and leaks
+// nothing.
+func TestDashboardSendsTheAPIKeyAsAHeaderNotAQueryParameter(t *testing.T) {
+	// Matches building a URL with the key appended, which is how it used to be
+	// done: `${url}${separator}api_key=${...}`.
+	urlBuild := regexp.MustCompile(`api_key=\$\{|[?&]api_key=`)
+
+	err := fs.WalkDir(staticFiles, "static", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".js") {
+			return err
+		}
+		if strings.Contains(p, "/core/") {
+			return nil
+		}
+		body, err := staticFiles.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if urlBuild.Match(body) {
+			t.Errorf("%s builds a URL containing api_key. Send it as an X-API-Key "+
+				"header instead: a query parameter lands in browser history, in the "+
+				"Referer sent to external links, and in access logs.", p)
+		}
+		// Reading the key from the page's own URL is how it arrives and is fine.
+		if !bytes.Contains(body, []byte("X-API-Key")) && bytes.Contains(body, []byte("getApiKey")) {
+			t.Errorf("%s reads an API key but never sends an X-API-Key header", p)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking embedded scripts: %v", err)
 	}
 }

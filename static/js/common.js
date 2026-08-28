@@ -14,47 +14,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return urlParams.get('api_key');
     }
 
-    // Function to add API key to fetch URL (only for API key auth)
-    function addApiKeyToUrl(url) {
-        const apiKey = getApiKey();
-        if (apiKey) {
-            const separator = url.includes('?') ? '&' : '?';
-            return `${url}${separator}api_key=${encodeURIComponent(apiKey)}`;
-        }
-        return url;
-    }
-
     // Function to make authenticated fetch request
     function authenticatedFetch(url, options = {}) {
         const apiKey = getApiKey();
         if (apiKey) {
-            // API key authentication - add to URL
-            const separator = url.includes('?') ? '&' : '?';
-            url = `${url}${separator}api_key=${encodeURIComponent(apiKey)}`;
-        } else {
-            // Check for custom authentication methods
-            const urlParams = new URLSearchParams(window.location.search);
-            const secret = urlParams.get('secret');
-
-            if (secret === 'monigo-admin-secret') {
-                // Custom query parameter authentication
-                const separator = url.includes('?') ? '&' : '?';
-                url = `${url}${separator}secret=${encodeURIComponent(secret)}`;
-            } else {
-                // Check for custom header authentication
-                // For custom auth, we need to add headers
-                if (!options.headers) {
-                    options.headers = {};
-                }
-
-                // Add custom header for admin access
-                options.headers['X-User-Role'] = 'admin';
-
-                // Set custom user agent for automated access
-                options.headers['User-Agent'] = 'MoniGo-Admin/1.0';
-            }
+            /*
+             * The key goes in a header, never the URL. As a query parameter it
+             * lands in browser history, in the Referer sent to any external
+             * link, and in every access log between here and the process.
+             * APIKeyMiddleware accepts either form, so the header suffices.
+             */
+            options.headers = Object.assign({}, options.headers, { 'X-API-Key': apiKey });
         }
-        // For basic auth, the browser handles credentials automatically
+        /*
+         * No other credential is attached. This used to assert a privileged
+         * role header on every unauthenticated request, copied from
+         * example/security-examples/custom-auth -- whose auth function grants
+         * access for exactly that header. The dashboard could therefore satisfy
+         * a consumer's own auth check on its own say-so. A browser cannot be
+         * trusted to assert its own privilege level, so it no longer claims
+         * one; custom auth belongs in the middleware, not in page JavaScript.
+         *
+         * Basic auth needs nothing here -- the browser attaches credentials.
+         */
         return fetch(url, options);
     }
 
