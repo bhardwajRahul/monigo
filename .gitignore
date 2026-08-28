@@ -33,3 +33,8 @@ profiles/
 
 # Design canvas exports (large self-unpacking bundles, not source)
 MoniGo Dashboard*.html
+
+# Design mockups: a reference to read, not code to ship. The dashboard's own
+# copy lives under static/.
+mocksup_static/
+new_static_mockups/

@@ -1,0 +1,581 @@
+/* MoniGo — design v2 token layer + components
+ *
+ * Drop-in for static/css/. Loaded INSTEAD of monigo-styles.css on the pages
+ * that have been migrated; the two can coexist while the migration is partial
+ * because every selector here is namespaced under .mg- or [data-theme].
+ *
+ * Values are the canvas design's, with the three defects found in review
+ * corrected at source (--onacc literal, --dim2 raised to 4.75:1 dark,
+ * --line2 raised past the 3:1 non-text floor in both themes).
+ *
+ * Theme mechanism is body[data-theme="light"], per DESIGN-ADOPTION.md D1.
+ * The localStorage key stays 'monigo-theme'.
+ */
+
+:root {
+  --acc:   #00B4E6;
+  --onacc: #04121A;
+  --ok:    #5FD39B;
+  --warn:  #FFA24B;
+  --bad:   #FF6B7A;
+  --vio:   #8B7BF7;
+
+  --bg:    #080B10;
+  --pan:   #0F141B;
+  --pan2:  #151B24;
+  --in:    #0B0F15;
+  --line:  #1D2531;   /* divider — 1.20:1, deliberately faint */
+  --line2: #526683;   /* control boundary — 3.16:1 */
+  --txt:   #E7EBF1;   /* 15.45 */
+  --dim:   #8892A2;   /*  5.88 */
+  /*
+   * 4.88 on --pan, 5.20 on --bg, 4.56 on --pan2, 5.07 on --in.
+   * The canvas value #778292 clears 4.75 on --pan but only 4.44 on the
+   * lighter --pan2 that table headers sit on. A tone tuned against one
+   * ground is not safe on the others, so this is tuned against the worst.
+   */
+  --dim2:  #798494;
+
+  /* radii: three steps, not the twelve the canvas drifted into */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  /* type: documented scale, 10–16, no display tier */
+  --t-micro: 9.5px;
+  --t-mono-s: 11px;
+  --t-mono: 11.5px;
+  --t-body-s: 12px;
+  --t-body: 12.5px;
+  --t-strong: 13px;
+  --t-title: 14px;
+  --t-stat: 22px;
+  --t-stat-lg: 26px;
+
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, sans-serif;
+}
+
+body[data-theme="light"] {
+  --acc:   #00758F;   /* 5.36 on --pan */
+  --onacc: #FFFFFF;
+  --ok:    #0F7A4F;   /* 5.35 */
+  --warn:  #A15600;   /* 5.41 */
+  --bad:   #C0273C;   /* 5.84 */
+  --vio:   #5B49D6;   /* 6.40 */
+
+  --bg:    #F3F5F9;
+  --pan:   #FFFFFF;
+  --pan2:  #F7F9FC;
+  --in:    #F7F9FC;
+  --line:  #E3E8EF;
+  --line2: #8191AB;   /* 3.20:1 */
+  --txt:   #0E141B;
+  --dim:   #5B6674;   /* 5.85 */
+  /* 5.02 on --pan, 4.60 on --bg, 4.76 on --pan2/--in. The canvas value
+     #6B7686 measured 4.22 on --bg and 4.37 on --pan2, so it failed on every
+     ground except the white panel it was sampled against. */
+  --dim2:  #657080;
+}
+
+/* Plex Mono only — the §6 recommendation. Stack traces and pprof output are
+ * the primary content of two pages, which is where a mono face earns bytes.
+ * Self-hosted so an airgapped host resolves it; if the files are absent the
+ * stack in --mono falls through with no visual break. */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('../assets/fonts/IBMPlexMono-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('../assets/fonts/IBMPlexMono-Medium.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('../assets/fonts/IBMPlexMono-SemiBold.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+
+
+/* ---------------------------------------------------------------- aliases
+ *
+ * The board CSS in monigo-styles.css -- KPI tiles, health strip, the
+ * goroutine and function tables, the reports grid -- was written against a
+ * different vocabulary for the same palette. Rather than rename two thousand
+ * lines and risk a silent miss, the old names are defined here as aliases of
+ * the new ones.
+ *
+ * These are one-way: --pan is the source, --surface-1 follows it. Set a value
+ * above, never here. Both themes inherit automatically because a var() alias
+ * resolves at use time, so the [data-theme] block above needs no counterpart.
+ */
+:root,
+body[data-theme="light"] {
+  --canvas:           var(--bg);
+  --surface-1:        var(--pan);
+  --surface-2:        var(--pan2);
+  --surface-3:        var(--pan2);
+  --inset:            var(--in);
+  --hairline:         var(--line);
+  --hairline-soft:    var(--line);
+  --hairline-strong:  var(--line2);
+  --ink:              var(--txt);
+  --ink-muted:        var(--dim);
+  --ink-subtle:       var(--dim2);
+  --ink-disabled:     var(--dim2);
+
+  --accent:           var(--acc);
+  --accent-text:      var(--acc);
+  --accent-press:     var(--acc);
+  --accent-on-fill:   var(--onacc);
+  --accent-tint:      color-mix(in srgb, var(--acc) 14%, transparent);
+  --focus:            var(--acc);
+
+  --ok-fill:   var(--ok);   --ok-text:   var(--ok);
+  --ok-tint:   color-mix(in srgb, var(--ok) 13%, transparent);
+  --warn-fill: var(--warn); --warn-text: var(--warn);
+  --warn-tint: color-mix(in srgb, var(--warn) 13%, transparent);
+  --crit-fill: var(--bad);  --crit-text: var(--bad);
+  --crit-tint: color-mix(in srgb, var(--bad) 12%, transparent);
+  --info-fill: var(--vio);  --info-text: var(--vio);
+  --info-tint: color-mix(in srgb, var(--vio) 12%, transparent);
+  --unknown-fill: var(--dim2); --unknown-text: var(--dim);
+  --unknown-tint: color-mix(in srgb, var(--dim) 12%, transparent);
+
+  --grid-line: var(--line);
+  --axis-line: var(--line);
+  --thr-line:  var(--bad);
+
+  --series-1: var(--acc);
+  --series-2: var(--vio);
+  --series-3: var(--warn);
+  --series-4: var(--bad);
+  --series-5: var(--ok);
+  --series-6: var(--dim);
+
+  /*
+   * Type and space names the board CSS uses that this file does not already
+   * define. --t-micro, --t-body, --r-sm, --r-md and --r-lg are deliberately
+   * absent: they exist above under the same names, and writing
+   * `--t-micro: var(--t-micro)` would be self-referential -- invalid at
+   * computed-value time, which is precisely the --onacc defect this design
+   * shipped with once already.
+   */
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+  --t-meta:  var(--t-mono);
+  --t-code:  var(--t-body-s);
+  --t-head:  var(--t-title);
+
+  /*
+   * The board CSS writes shorthand `font: var(--t-x-w) var(--t-x) / var(--t-x-lh)`,
+   * so each size needs a line height and a weight beside it. Line heights are
+   * set in px rather than as ratios because these sit in dense tables where a
+   * row must be the same height whatever size the cell text is.
+   */
+  --t-micro-lh: 14px;  --t-micro-w: 500;
+  --t-meta-lh:  16px;  --t-meta-w:  400;
+  --t-code-lh:  19px;  --t-code-w:  400;
+  --t-body-lh:  19px;  --t-body-w:  400;
+  --t-head-lh:  21px;  --t-head-w:  600;
+  --t-stat-lh:  30px;  --t-stat-w:  600;
+
+  --s-1: 2px;  --s-2: 4px;  --s-3: 8px;
+  --s-4: 12px; --s-5: 16px; --s-6: 24px; --s-7: 32px;
+}
+
+* { box-sizing: border-box; }
+
+/* The status dot, the LIVE indicator and the loading shimmer all animate
+   forever. Respect a viewer who has asked things to hold still. */
+@media (prefers-reduced-motion: reduce) {
+  .mg-dot,
+  .mg-live i,
+  .mg-skel {
+    animation: none !important;
+  }
+}
+
+body.mg {
+  margin: 0;
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: var(--t-strong);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.mg a { color: var(--acc); text-decoration: none; }
+body.mg a:hover { text-decoration: underline; }
+
+.mg ::-webkit-scrollbar { width: 9px; height: 9px; }
+.mg ::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 9px; }
+.mg ::-webkit-scrollbar-track { background: transparent; }
+
+/* Every live number is tabular so columns stop jittering on each poll. */
+.mg-num, .mg-stat, .mg-mono { font-variant-numeric: tabular-nums; }
+
+@keyframes mg-pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+@keyframes mg-spin  { to { transform: rotate(360deg) } }
+@keyframes mg-shim  { 0%,100% { opacity: .35 } 50% { opacity: .7 } }
+
+/* ---------------------------------------------------------------- layout */
+
+.mg-app { display: flex; height: 100vh; height: 100dvh; min-height: 640px; overflow: hidden; }
+
+.mg-rail {
+  width: 226px; flex: none; background: var(--pan);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.mg-rail__brand {
+  height: 53px; flex: none; padding: 0 16px;
+  display: flex; align-items: center; gap: 9px;
+  border-bottom: 1px solid var(--line);
+}
+.mg-rail__brand img { height: 18px; width: auto; display: block; }
+.mg-version {
+  margin-left: auto; font: 500 var(--t-micro)/1 var(--mono); letter-spacing: .08em;
+  color: var(--dim2); background: var(--pan2); border: 1px solid var(--line);
+  padding: 4px 6px; border-radius: var(--r-sm);
+}
+
+.mg-svc {
+  padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.mg-svc__avatar {
+  width: 26px; height: 26px; flex: none; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+  display: grid; place-items: center;
+  font: 600 var(--t-mono-s) var(--mono); color: var(--acc); text-transform: lowercase;
+}
+.mg-svc__id { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mg-svc__name {
+  font: 500 var(--t-body-s) var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mg-svc__meta { font: 400 10px var(--mono); color: var(--dim2); }
+.mg-dot {
+  margin-left: auto; width: 6px; height: 6px; flex: none; border-radius: 50%;
+  background: var(--ok); animation: mg-pulse 2.4s infinite;
+}
+.mg-dot.is-stale { background: var(--warn); }
+.mg-dot.is-down  { background: var(--bad); animation: mg-pulse 1.4s infinite; }
+
+.mg-navhead {
+  padding: 14px 12px 6px; font: 500 var(--t-micro)/1 var(--mono);
+  letter-spacing: .12em; color: var(--dim2);
+}
+.mg-nav { display: flex; flex-direction: column; gap: 1px; padding: 0 10px; }
+.mg-nav a {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: var(--r-md); font-weight: 500; font-size: var(--t-strong);
+  color: var(--dim); text-decoration: none;
+}
+.mg-nav a:hover { background: var(--pan2); color: var(--txt); text-decoration: none; }
+.mg-nav a.is-active {
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+  color: var(--acc); box-shadow: inset 2px 0 0 var(--acc);
+}
+.mg-nav svg { width: 15px; height: 15px; flex: none; }
+.mg-badge { margin-left: auto; font: 500 10px var(--mono); color: var(--dim2); }
+.mg-badge:empty { display: none; }
+
+.mg-rail__foot {
+  margin-top: auto; padding: 14px; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mg-rail__foot .mg-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font: 500 10px var(--mono);
+}
+
+.mg-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.mg-top {
+  height: 53px; flex: none; border-bottom: 1px solid var(--line);
+  background: var(--pan); display: flex; align-items: center; gap: 14px; padding: 0 18px;
+}
+.mg-top__title { font-weight: 600; font-size: var(--t-title); white-space: nowrap; }
+.mg-top__sub { font: 400 var(--t-mono) var(--mono); color: var(--dim2); white-space: nowrap; }
+.mg-top__right { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+
+.mg-live {
+  display: flex; align-items: center; gap: 7px; padding: 5px 10px;
+  border-radius: var(--r-md); cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--ok) 34%, transparent);
+  background: color-mix(in srgb, var(--ok) 13%, transparent);
+  color: var(--ok); font: 500 var(--t-mono) var(--mono);
+}
+.mg-live i {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  animation: mg-pulse 1.6s infinite; display: block;
+}
+.mg-live.is-paused {
+  background: var(--pan2); color: var(--dim); border-color: var(--line2);
+}
+.mg-live.is-paused i { animation: none; }
+
+.mg-iconbtn {
+  width: 31px; height: 31px; display: grid; place-items: center;
+  border: 1px solid var(--line2); background: var(--pan2);
+  border-radius: var(--r-md); cursor: pointer; color: var(--dim);
+}
+.mg-iconbtn:hover { color: var(--txt); }
+
+.mg-content { flex: 1; overflow-y: auto; padding: 18px; }
+.mg-stack { display: flex; flex-direction: column; gap: 14px; max-width: 1560px; }
+
+/* ---------------------------------------------------------------- panels */
+
+.mg-panel {
+  background: var(--pan); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+}
+.mg-panel__head {
+  display: flex; align-items: center; gap: 12px; padding: 13px 18px;
+  border-bottom: 1px solid var(--line); font-weight: 600; font-size: var(--t-strong);
+}
+.mg-panel__body { padding: 16px 18px; }
+
+.mg-grid { display: grid; gap: 14px; }
+.mg-grid--4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.mg-grid--2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); }
+
+.mg-tile {
+  background: var(--pan); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 14px 15px 0; display: flex; flex-direction: column; gap: 3px; overflow: hidden;
+}
+.mg-tile--plain { padding: 14px 15px; }
+.mg-label {
+  font: 500 var(--t-micro) var(--mono); letter-spacing: .11em; color: var(--dim2);
+  text-transform: uppercase;
+}
+.mg-statline { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+.mg-stat {
+  font: 600 var(--t-stat-lg) var(--mono); letter-spacing: -.03em; color: var(--txt);
+}
+.mg-stat--sm { font-size: var(--t-stat); }
+.mg-unit { font-size: var(--t-body-s); color: var(--dim2); }
+.mg-trail { margin-left: auto; font: 500 var(--t-mono-s) var(--mono); color: var(--dim); }
+
+
+/* ---------------------------------------------------------------- tables */
+
+.mg-table { width: 100%; }
+.mg-tr {
+  display: grid; gap: 14px; align-items: center; padding: 11px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.mg-tr--head {
+  padding: 10px 18px; background: var(--pan2);
+  font: 500 var(--t-micro) var(--mono); letter-spacing: .1em; color: var(--dim2);
+  text-transform: uppercase;
+}
+.mg-tr--click { cursor: pointer; }
+.mg-tr--click:hover { background: var(--pan2); }
+.mg-cell { font: 500 var(--t-body-s) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-cell--r { text-align: right; }
+.mg-cell--dim { color: var(--dim); }
+.mg-cell--micro { font: 400 var(--t-mono-s) var(--mono); color: var(--dim2); }
+
+.mg-pre {
+  margin: 0; padding: 14px 18px; background: var(--in);
+  font: 400 var(--t-mono-s)/1.7 var(--mono); color: var(--dim);
+  overflow-x: auto; border-top: 1px solid var(--line);
+}
+
+/* ---------------------------------------------------------- state colours */
+
+.is-ok   { color: var(--ok); }
+.is-warn { color: var(--warn); }
+.is-bad  { color: var(--bad); }
+.is-dim  { color: var(--dim); }
+
+.mg-note {
+  display: flex; align-items: center; gap: 10px; padding: 9px 18px;
+  font-size: var(--t-body); border-bottom: 1px solid transparent;
+}
+.mg-note--bad {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--bad) 34%, transparent);
+  color: var(--bad);
+}
+.mg-note--warn {
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--warn) 34%, transparent);
+  color: var(--warn);
+}
+.mg-note__act {
+  margin-left: auto; font: 500 var(--t-mono-s) var(--mono);
+  padding: 3px 9px; border: 1px solid currentColor; border-radius: var(--r-sm);
+  cursor: pointer; background: none; color: inherit;
+}
+
+.mg-btn {
+  padding: 7px 12px; border-radius: var(--r-md); cursor: pointer;
+  font: 600 var(--t-mono) var(--mono); border: 1px solid transparent;
+  background: var(--acc); color: var(--onacc);
+}
+.mg-btn--ghost {
+  background: var(--pan); color: var(--txt); border-color: var(--line2); font-weight: 500;
+}
+
+.mg-card--warn {
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 36%, transparent);
+  border-radius: var(--r-lg); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 9px;
+}
+
+/* Skeletons: a value that has not arrived reads as absent, never as zero. */
+.mg-skel { animation: mg-shim 1.6s infinite; color: var(--dim2); }
+
+/* Staleness: the whole content region dims while a poll is failing, so the
+ * numbers cannot be mistaken for current ones. */
+.mg-content.is-stale .mg-tile,
+.mg-content.is-stale .mg-panel { opacity: .55; }
+
+
+/* ------------------------------------------------- rail footer + top bar bits
+ *
+ * Pieces the canvas drew inline. Pulled into the stylesheet so the markup
+ * carries no style attributes -- an inline var(--x) is invisible to review and
+ * to the token guardrail.
+ */
+
+.mg-rail__footlabel {
+  color: var(--dim2);
+  letter-spacing: .1em;
+}
+
+.mg-rail__footmode {
+  color: var(--dim);
+}
+
+.mg-rail__footvalue {
+  font: 400 10.5px var(--mono);
+  color: var(--dim2);
+}
+
+/* Segmented time-range control. Not in the canvas, which drew one fixed
+   window; kept because "which moved first" is unanswerable if you cannot
+   change the window you are asking about. */
+.mg-range {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--pan2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.mg-range-seg {
+  padding: 4px 9px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--dim);
+  font: 500 var(--t-mono-s) var(--mono);
+  cursor: pointer;
+}
+
+.mg-range-seg:hover {
+  color: var(--txt);
+}
+
+.mg-range-seg.is-active {
+  background: var(--acc);
+  color: var(--onacc);
+}
+
+.mg-range-seg:focus-visible,
+.mg-live:focus-visible,
+.mg-iconbtn:focus-visible,
+.mg-nav a:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+.mg-top__menu {
+  display: none;
+}
+
+/* ------------------------------------------------------------- narrow widths
+ *
+ * The canvas is a single fixed-width artboard and has no answer for a phone.
+ * Below 1000px the rail slides out of flow behind a toggle; without this the
+ * 226px rail takes 60% of a 375px viewport and the content cannot be reached,
+ * because .mg-app is overflow:hidden and only .mg-content scrolls.
+ */
+@media (max-width: 999px) {
+  .mg-rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform .18s ease;
+    box-shadow: var(--sh-2, 0 16px 40px -12px rgba(0, 0, 0, .6));
+  }
+
+  .mg-app.is-navopen .mg-rail {
+    transform: translateX(0);
+  }
+
+  .mg-top__menu {
+    display: grid;
+  }
+
+  /* Tapping outside the rail closes it. */
+  .mg-app.is-navopen::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(0, 0, 0, .45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-rail {
+    transition: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .mg-top__sub {
+    display: none;
+  }
+
+  .mg-content {
+    padding: 12px;
+  }
+}
+
+/* A short window should not be forced to 640px and given a scrollbar. */
+@media (max-height: 640px) {
+  .mg-app {
+    min-height: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- not here
+ *
+ * .mg-bar, .mg-bar > span, .mg-spark and .mg-empty were defined in the canvas
+ * export and are deliberately absent.
+ *
+ * The board CSS uses those same four class names for a different shape -- its
+ * .mg-bar is a flex column holding a label row above a track, not a 5px track
+ * itself. Because the two files agree on the name but not the structure, the
+ * canvas rules did not simply lose the cascade: they leaked the properties the
+ * board file had no reason to override. `height: 5px` on .mg-bar crushed the
+ * whole threshold bar to a fifth of a line, hiding the track completely.
+ *
+ * The canvas versions had no consumer here -- they styled markup from the
+ * mockup's own renderers, which this dashboard does not use -- so they are
+ * removed rather than renamed.
+ */

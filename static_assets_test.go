@@ -62,7 +62,7 @@ var knownExternalResources = map[string]string{}
 //
 // Headroom over the current payload is deliberately small (~5%), so that
 // anything substantial being added has to be an explicit decision.
-const maxEmbeddedBytes = 8_000_000
+const maxEmbeddedBytes = 420_000
 
 // htmlFiles returns every embedded .html file.
 func htmlFiles(t *testing.T) []string {
@@ -657,6 +657,33 @@ func TestEmbeddedPagesCarryNoHardcodedVersion(t *testing.T) {
 				"Nothing updates it, so it goes stale silently -- this footer claimed "+
 				"v1.0.0 four releases on. Link to /releases and drop the literal.",
 				f, hit)
+		}
+	}
+}
+
+// A custom property that resolves to itself is invalid at computed-value time:
+// the browser discards the declaration and every use of the token falls back to
+// whatever it inherited. It renders, so review passes it.
+//
+// This design has shipped that exact defect before -- `--onacc: var(--onacc)`
+// left eight accent buttons inheriting body text colour at 2.02:1 -- and the
+// alias layer added for the shell swap is the natural place to reintroduce it,
+// since aliasing is what it does.
+func TestNoTokenResolvesToItself(t *testing.T) {
+	aliasPattern := regexp.MustCompile(`(--[\w-]+)\s*:\s*var\(\s*(--[\w-]+)`)
+
+	for _, p := range ourStylesheets(t) {
+		b, err := staticFiles.ReadFile(p)
+		if err != nil {
+			t.Fatalf("reading %s: %v", p, err)
+		}
+		css := cssCommentPattern.ReplaceAllString(string(b), "")
+		for _, m := range aliasPattern.FindAllStringSubmatch(css, -1) {
+			if m[1] == m[2] {
+				t.Errorf("%s: %s is defined as var(%s) -- it resolves to itself.\n"+
+					"The declaration is discarded and every use of it silently falls "+
+					"back to the inherited value.", p, m[1], m[2])
+			}
 		}
 	}
 }

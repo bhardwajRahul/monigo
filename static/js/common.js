@@ -40,66 +40,88 @@ document.addEventListener('DOMContentLoaded', () => {
         return fetch(url, options);
     }
 
-    // 1. Theme Configuration & Toggle Initialization (Synchronous, prioritized)
-    const savedTheme = localStorage.getItem('monigo-theme') || 'light';
-    
-    // Inject theme toggle button into the correct, visible top right navbar-list
-    const navbarList = document.querySelector('#navbarSupportedContent .navbar-list') || document.querySelector('.navbar-nav.navbar-list');
-    if (navbarList) {
-        const toggleLi = document.createElement('li');
-        toggleLi.className = 'nav-item nav-icon ml-3';
-        
-        const toggleLink = document.createElement('a');
-        toggleLink.id = 'theme-toggle-btn';
-        toggleLink.className = 'cursor-pointer';
-        toggleLink.innerHTML =
-            '<svg class="icon" aria-hidden="true" style="width:16px;height:16px;"><use href="#i-moon"></use></svg>';
-        
-        toggleLi.appendChild(toggleLink);
-        navbarList.appendChild(toggleLi);
-        
-        // Add event listener to toggle theme
-        toggleLink.addEventListener('click', () => {
-            const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(newTheme);
-        });
-    }
-
-    // The redesigned Overview supplies its own toggle in the top bar rather than
-    // having one injected, so bind that when it is present. Both paths call the
-    // same setTheme(), so the two shells can never disagree about the theme.
-    const designToggle = document.getElementById('mg-theme-toggle');
-    if (designToggle) {
-        designToggle.addEventListener('click', () => {
-            const isDark = document.body.classList.contains('dark-theme');
-            setTheme(isDark ? 'light' : 'dark');
-        });
-    }
-
+    /*
+     * Theme.
+     *
+     * The stylesheet keys off body[data-theme]. Dark is the default -- :root
+     * carries the dark palette and light is the opt-in override -- so a first
+     * visit with nothing stored lands on dark.
+     *
+     * The old class-based mechanism (body.dark-theme) and the toggle injected
+     * into the vendored navbar both went with that navbar. The storage key and
+     * its 'dark'/'light' values are unchanged, so a preference set before this
+     * change is still honoured.
+     */
     function setTheme(theme) {
-        if (theme === 'dark') {
-            document.body.classList.add('dark-theme');
-            localStorage.setItem('monigo-theme', 'dark');
-            setThemeIcon('#i-sun');
-        } else {
-            document.body.classList.remove('dark-theme');
-            localStorage.setItem('monigo-theme', 'light');
-            setThemeIcon('#i-moon');
+        document.body.setAttribute('data-theme', theme);
+        try {
+            localStorage.setItem('monigo-theme', theme);
+        } catch (e) {
+            /* private mode: the toggle still works, it just will not persist */
         }
-        // Emit event to notify other scripts (like charts) to update colors
+        setThemeIcon(theme === 'dark' ? '#i-sun' : '#i-moon');
         document.dispatchEvent(new CustomEvent('monigoThemeChanged', { detail: { theme } }));
     }
 
-    // Whichever toggle this page has -- injected or built into the design's top
-    // bar -- gets the same glyph.
     function setThemeIcon(href) {
-        const icons = [
-            document.querySelector('#theme-toggle-btn use'),
-            document.getElementById('mg-theme-icon'),
-        ];
-        icons.forEach(icon => icon && icon.setAttribute('href', href));
+        const icon = document.getElementById('mg-theme-icon');
+        if (icon) {
+            icon.setAttribute('href', href);
+        }
     }
+
+    let savedTheme = 'dark';
+    try {
+        savedTheme = localStorage.getItem('monigo-theme') || 'dark';
+    } catch (e) {
+        /* ignore */
+    }
+
+    const themeToggle = document.getElementById('mg-theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            setTheme(document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+        });
+    }
+
+    /*
+     * Navigation on narrow viewports. Below 1000px the rail is out of flow, so
+     * without this there is no way to reach another page: .mg-app is
+     * overflow:hidden and only .mg-content scrolls.
+     */
+    const app = document.querySelector('.mg-app');
+    const navToggle = document.getElementById('mg-topbar-menu');
+    if (app && navToggle) {
+        const setOpen = open => {
+            app.classList.toggle('is-navopen', open);
+            navToggle.setAttribute('aria-expanded', String(open));
+        };
+        navToggle.addEventListener('click', () => {
+            setOpen(!app.classList.contains('is-navopen'));
+        });
+        // The scrim is a pseudo-element on .mg-app, so its clicks land here.
+        app.addEventListener('click', e => {
+            if (app.classList.contains('is-navopen') &&
+                !e.target.closest('.mg-rail') &&
+                !e.target.closest('#mg-topbar-menu')) {
+                setOpen(false);
+            }
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                setOpen(false);
+            }
+        });
+    }
+
+    // Marks the current page in the rail, so no page has to hardcode it.
+    (function markActiveNav() {
+        const here = location.pathname.split('/').pop() || 'index.html';
+        document.querySelectorAll('.mg-nav a').forEach(a => {
+            const href = (a.getAttribute('href') || '').split('/').pop();
+            a.classList.toggle('is-active', href === here);
+        });
+    }());
 
     // Apply saved theme preference immediately
     setTheme(savedTheme);

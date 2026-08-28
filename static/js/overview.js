@@ -551,65 +551,165 @@ document.addEventListener('DOMContentLoaded', () => {
         return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
-    let chart = null;
+    /*
+     * The runtime-load chart, drawn as inline SVG.
+     *
+     * This replaced ECharts, which was 1.0 MB of the embedded payload for this
+     * one chart -- a cost every consumer paid in their binary whether or not
+     * they ever opened the dashboard.
+     *
+     * The three series are normalised INDEPENDENTLY rather than sharing a y
+     * axis. They have unrelated units -- a CPU percentage, megabytes of heap,
+     * and a goroutine count -- so a shared axis lets whichever is numerically
+     * largest flatten the other two into the baseline: with heap at 778 and
+     * goroutines at 14, the CPU line is a straight line at zero regardless of
+     * what it did. The question this chart exists to answer is "which moved
+     * first", which is a question about shape, so each line gets the full
+     * height and the y axis carries no labels. Absolute values are on the KPI
+     * tiles directly above, and on the crosshair readout.
+     */
+    const PLOT = { w: 600, h: 200, pad: 10 };
 
     function renderChart(el, times, cpu, heap, gor, sampleCount) {
-        if (!el || typeof echarts === 'undefined') {
+        if (!el) {
             return;
         }
-        if (!chart) {
-            chart = echarts.init(el);
-            window.addEventListener('resize', () => chart && chart.resize());
+
+        const series = [
+            { key: 'cpu', label: 'service cpu', values: cpu, color: cssVar('--series-1'), fmt: v => v.toFixed(3) + '%' },
+            { key: 'heap', label: 'heap inuse', values: heap, color: cssVar('--series-2'), fmt: v => v.toFixed(2) + ' MB' },
+            { key: 'gor', label: 'goroutines', values: gor, color: cssVar('--series-3'), fmt: v => String(Math.round(v)) },
+        ];
+
+        // Fewer than ~6 samples reads as a polyline, not a trend, so the points
+        // are drawn explicitly rather than implied by the line.
+        const sparse = sampleCount < 6;
+        const grid = cssVar('--grid-line');
+
+        const gridLines = [0, 0.25, 0.5, 0.75, 1]
+            .map(f => {
+                const y = (PLOT.pad + f * (PLOT.h - PLOT.pad * 2)).toFixed(1);
+                return `<line x1="0" y1="${y}" x2="${PLOT.w}" y2="${y}" stroke="${grid}" stroke-width="1"/>`;
+            })
+            .join('');
+
+        const paths = series.map(sr => {
+            const d = linePath(sr.values);
+            if (!d) {
+                return '';
+            }
+            let out = '';
+            if (!sparse) {
+                out += `<path d="${areaPath(sr.values)}" fill="${sr.color}" opacity="0.12"/>`;
+            }
+            out += `<path d="${d}" fill="none" stroke="${sr.color}" stroke-width="1.6" ` +
+                `vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+            if (sparse) {
+                // pointsOf yields y === null where the sample is missing, so a
+                // gap stays a gap rather than being drawn at zero. Those have
+                // no dot to place.
+                out += pointsOf(sr.values)
+                    .filter(pt => pt.y !== null)
+                    .map(pt => `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="2.5" fill="${sr.color}"/>`)
+                    .join('');
+            }
+            return out;
+        }).join('');
+
+        el.innerHTML =
+            `<svg class="mg-plot__svg" viewBox="0 0 ${PLOT.w} ${PLOT.h}" preserveAspectRatio="none" ` +
+            `aria-hidden="true">${gridLines}${paths}` +
+            `<line class="mg-plot__cross" x1="0" y1="0" x2="0" y2="${PLOT.h}" stroke="${cssVar('--ink-subtle')}" ` +
+            `stroke-width="1" stroke-dasharray="3 3" opacity="0"/></svg>` +
+            `<div class="mg-plot__readout" aria-hidden="true"></div>`;
+
+        wireCrosshair(el, times, series);
+    }
+
+    // Scales one series across the full plot height. Returns null-safe points so
+    // a gap in the data stays a gap rather than being interpolated over.
+    function pointsOf(values) {
+        const finite = values.filter(v => typeof v === 'number' && isFinite(v));
+        if (finite.length < 2) {
+            return [];
+        }
+        const lo = Math.min(...finite);
+        const hi = Math.max(...finite);
+        const span = (hi - lo) || 1;
+        const inner = PLOT.h - PLOT.pad * 2;
+        return values.map((v, i) => ({
+            x: (i / (values.length - 1)) * PLOT.w,
+            y: typeof v === 'number' && isFinite(v)
+                ? PLOT.h - PLOT.pad - ((v - lo) / span) * inner
+                : null,
+        }));
+    }
+
+    function linePath(values) {
+        const pts = pointsOf(values);
+        if (!pts.length) {
+            return '';
+        }
+        let d = '';
+        let penDown = false;
+        pts.forEach(pt => {
+            if (pt.y === null) {
+                penDown = false;   // a gap, not a value of zero
+                return;
+            }
+            d += `${penDown ? 'L' : 'M'}${pt.x.toFixed(1)} ${pt.y.toFixed(1)} `;
+            penDown = true;
+        });
+        return d.trim();
+    }
+
+    function areaPath(values) {
+        const d = linePath(values);
+        if (!d) {
+            return '';
+        }
+        return `${d} L${PLOT.w} ${PLOT.h} L0 ${PLOT.h} Z`;
+    }
+
+    // Replaces the ECharts tooltip. Without it the chart shows shape but no
+    // numbers, and the y axis deliberately carries none.
+    function wireCrosshair(el, times, series) {
+        const svg = el.querySelector('.mg-plot__svg');
+        const cross = el.querySelector('.mg-plot__cross');
+        const readout = el.querySelector('.mg-plot__readout');
+        if (!svg || !cross || !readout || !times.length) {
+            return;
         }
 
-        const ink = cssVar('--ink-subtle');
-        const grid = cssVar('--grid-line');
-        // Fewer than ~6 samples reads as a polyline, not a trend, so the points
-        // are shown explicitly rather than implied by a smooth curve.
-        const sparse = sampleCount < 6;
+        const show = clientX => {
+            const box = el.getBoundingClientRect();
+            if (!box.width) {
+                return;
+            }
+            const frac = Math.min(1, Math.max(0, (clientX - box.left) / box.width));
+            const i = Math.round(frac * (times.length - 1));
 
-        const line = (name, data, colorVar) => ({
-            name,
-            type: 'line',
-            data,
-            smooth: false,
-            showSymbol: sparse,
-            symbolSize: 5,
-            lineStyle: { width: 1.6, color: cssVar(colorVar) },
-            itemStyle: { color: cssVar(colorVar) },
-            areaStyle: sparse ? undefined : { opacity: 0.12, color: cssVar(colorVar) },
-            connectNulls: true,
+            cross.setAttribute('x1', ((i / Math.max(1, times.length - 1)) * PLOT.w).toFixed(1));
+            cross.setAttribute('x2', cross.getAttribute('x1'));
+            cross.setAttribute('opacity', '1');
+
+            readout.innerHTML =
+                `<span class="mg-plot__at">${times[i]}</span>` +
+                series.map(sr => {
+                    const v = sr.values[i];
+                    const shown = typeof v === 'number' && isFinite(v) ? sr.fmt(v) : '—';
+                    return `<span class="mg-plot__val" style="color:${sr.color}">${shown}</span>`;
+                }).join('');
+            readout.classList.add('is-visible');
+        };
+
+        el.addEventListener('mousemove', e => show(e.clientX));
+        el.addEventListener('mouseleave', () => {
+            cross.setAttribute('opacity', '0');
+            readout.classList.remove('is-visible');
         });
-
-        chart.setOption({
-            backgroundColor: 'transparent',
-            animation: false,
-            // containLabel reserves room for the axis labels but not for the
-            // last category label, which boundaryGap:false centres on the final
-            // point at the very edge -- so it loses its trailing digit without
-            // this inset.
-            grid: { left: 8, right: 24, top: 8, bottom: 4, containLabel: true },
-            tooltip: { trigger: 'axis' },
-            xAxis: {
-                type: 'category',
-                data: times,
-                boundaryGap: false,
-                axisLine: { lineStyle: { color: grid } },
-                axisTick: { show: false },
-                axisLabel: { color: ink, fontSize: 10 },
-            },
-            yAxis: {
-                type: 'value',
-                splitLine: { lineStyle: { color: grid } },
-                axisLabel: { color: ink, fontSize: 10 },
-            },
-            series: [
-                line('service cpu', cpu, '--series-1'),
-                line('heap inuse', heap, '--series-2'),
-                line('goroutines', gor, '--series-3'),
-            ],
-        }, { notMerge: true });
     }
+
 
     // --------------------------------------------------- traced functions
 

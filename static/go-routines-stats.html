@@ -1,31 +1,17 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Monigo - Metrics Dashboard</title>
-
-    <!-- Favicon -->
-    <link rel="shortcut icon" href="./assets/favicon.ico" />
-    <link rel="stylesheet" href="./css/core/backend-plugin.min.css">
-    <link rel="stylesheet" href="./css/core/backend.css?v=1.0.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MoniGo — Goroutines</title>
+    <link rel="icon" href="./assets/favicon.ico">
+    <link rel="stylesheet" href="./css/monigo-design.css">
     <link rel="stylesheet" href="./css/monigo-styles.css">
-    
 </head>
 
-<body class="  ">
-    <!--
-      Icon sprite. Nine glyphs, hand-inlined, ~3 KB.
+<body class="mg">
 
-      This replaces Font Awesome 4.7.0, which was fetched from cdnjs and so
-      rendered nothing on an airgapped host, and the dead `las la-bars` and
-      `ri-menu-*` classes, whose icon fonts were never loaded at all in any
-      network condition -- which is why the mobile menu buttons were invisible.
-
-      Stroke icons inherit `currentColor`, so they follow the theme without a
-      second set of rules. The GitHub mark is from simple-icons (CC0).
-    -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true" focusable="false">
       <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
@@ -38,153 +24,84 @@
       <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M21.8 10A10 10 0 1 1 17 3.34M9 11l3 3L22 4"/></symbol>
       <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></symbol>
     </svg>
-    <!-- loader Start -->
-    <div id="loading">
-        <div id="loading-center">
-        </div>
+
+<div class="mg-app">
+  <nav class="mg-rail">
+    <div class="mg-rail__brand">
+      <img src="./assets/monigo-icon.png" alt="MoniGo">
     </div>
-    <!-- loader END -->
-    <!-- Wrapper Start -->
-    <div class="wrapper">
 
-        <div class="iq-sidebar  sidebar-default ">
-            <div class="iq-sidebar-logo d-flex align-items-center justify-content-between">
-                <a href="./index.html" class="header-logo">
-                    <img src="./assets/monigo-icon.png" class="img-fluid rounded-normal light-logo" alt="logo">
-                </a>
-                <div class="iq-menu-bt-sidebar ml-0">
-                    <svg class="icon wrapper-menu" aria-hidden="true"><use href="#i-menu"></use></svg>
-                </div>
-            </div>
-            <!-- Service identity. The design puts what you are looking at above
-                 the navigation, so the page answers "which service is this?"
-                 without a round trip. Populated by common.js. -->
-            <div class="mg-identity">
-                <div class="mg-identity-avatar" id="mg-avatar">--</div>
-                <div class="mg-identity-text">
-                    <span class="mg-identity-name" id="mg-service-name">&nbsp;</span>
-                    <span class="mg-identity-meta" id="mg-service-meta">&nbsp;</span>
-                </div>
-                <span class="mg-identity-dot" id="mg-status-dot" title="Connected"></span>
-            </div>
+    <div class="mg-svc">
+      <div class="mg-svc__avatar" id="mg-avatar">--</div>
+      <div class="mg-svc__id">
+        <span class="mg-svc__name" id="mg-service-name">connecting...</span>
+        <span class="mg-svc__meta" id="mg-service-meta"></span>
+      </div>
+      <span class="mg-dot" id="mg-status-dot" title="Connected"></span>
+    </div>
 
-            <div class="data-scrollbar" data-scroll="1">
-                <nav class="iq-sidebar-menu">
-                    <ul id="iq-sidebar-toggle" class="iq-menu">
-                        <li class="mg-navlabel">MONITOR</li>
-                        <li class=" ">
-                            <a href="./index.html" class="svg-icon">
-                                <svg class="svg-icon" id="p-dash1" width="20" height="20" xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round">
-                                    <path
-                                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                                    </path>
-                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                                </svg>
-                                <span class="ml-4">Dashboards</span>
-                            </a>
-                        </li>
-                        <li class=" ">
-                            <a href="./function-metrics.html" class="">
-                                <svg class="svg-icon" id="p-dash1" width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path
-                                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                                    </path>
-                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                                </svg>
-                                <span class="ml-4">Function Metrics</span><span class="mg-badge" id="mg-count-functions"></span>
-                            </a>
-                        </li>
-                        <li class="active">
-                            <a href="./go-routines-stats.html" class="">
-                                <svg class="svg-icon" id="p-dash1" width="20" height="20" xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round">
-                                    <path
-                                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                                    </path>
-                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                                </svg>
-                                <span class="ml-4">Go Routines Stats</span><span class="mg-badge" id="mg-count-goroutines"></span>
-                            </a>
-                        </li>
-                        <li class=" ">
-                            <a href="./reports.html" class="">
-                                <svg class="svg-icon" id="p-dash7" width="20" height="20" xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                    <polyline points="10 9 9 9 8 9"></polyline>
-                                </svg>
-                                <span class="ml-4">Reports</span>
-                            </a>
-                            <ul id="reports" class="iq-submenu collapse" data-parent="#iq-sidebar-toggle">
-                            </ul>
-                        </li>
-                    </ul>
-                </nav>
-                <div class="mg-storage">
-                    <div class="mg-storage-head">
-                        <span>STORAGE</span>
-                        <span id="mg-storage-mode">&nbsp;</span>
-                    </div>
-                    <div class="mg-storage-value" id="mg-storage-value">&nbsp;</div>
-                </div>
-                <div id="sidebar-bottom" class="position-relative sidebar-bottom">
-                    <div class="card border-none border-radius-20 p-2 bg-success-light">
-                        <div class="card-body">
-                            <div class="sidebarbottom-content">
-                                <h6 class="body-title">Found a bug or have a feature request? Please report it on GitHub. If you find this project useful, we would appreciate a star on GitHub.</h6>
-                                <button type="button" class="btn sidebar-bottom-btn mt-4">
-                                    <a href="https://github.com/iyashjayesh/monigo" target="_blank">
-                                        Support the project
-                                    </a>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-3"></div>
-            </div>
-        </div>
-<header class="mg-topbar">
-  <button type="button" class="mg-iconbtn mg-topbar-menu" id="mg-topbar-menu"
-          aria-label="Toggle navigation" aria-expanded="false">
-    <svg class="mg-icon" aria-hidden="true" focusable="false"><use href="#i-menu"></use></svg>
-  </button>
+    <div class="mg-navhead">Monitor</div>
+    <div class="mg-nav">
+      <a href="./index.html">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.8" y="1.8" width="5" height="5" rx="1"></rect><rect x="9.2" y="1.8" width="5" height="5" rx="1"></rect><rect x="1.8" y="9.2" width="5" height="5" rx="1"></rect><rect x="9.2" y="9.2" width="5" height="5" rx="1"></rect></svg>
+        <span>Overview</span>
+      </a>
+      <a href="./function-metrics.html">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5.5 3h-1a1.6 1.6 0 0 0-1.6 1.6v1.7c0 .8-.6 1.4-1.4 1.4.8 0 1.4.6 1.4 1.4v1.7A1.6 1.6 0 0 0 4.5 13h1"></path><path d="M10.5 3h1a1.6 1.6 0 0 1 1.6 1.6v1.7c0 .8.6 1.4 1.4 1.4-.8 0-1.4.6-1.4 1.4v1.7a1.6 1.6 0 0 1-1.6 1.6h-1"></path></svg>
+        <span>Functions</span>
+        <span class="mg-badge" id="mg-count-functions"></span>
+      </a>
+      <a href="./go-routines-stats.html" class="is-active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="2.1"></circle><path d="M8 1.4v2.3M8 12.3v2.3M1.4 8h2.3M12.3 8h2.3M3.4 3.4l1.6 1.6M11 11l1.6 1.6M12.6 3.4L11 5M5 11l-1.6 1.6"></path></svg>
+        <span>Goroutines</span>
+        <span class="mg-badge" id="mg-count-goroutines"></span>
+      </a>
+      <a href="./reports.html">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3.2 2.2h6l3.6 3.6v8a.6.6 0 0 1-.6.6H3.2a.6.6 0 0 1-.6-.6V2.8a.6.6 0 0 1 .6-.6z"></path><path d="M9 2.4V6h3.6M5.2 9.4h5.6M5.2 11.6h3.4"></path></svg>
+        <span>Reports</span>
+      </a>
+    </div>
 
-  <div class="mg-topbar-heading">
-    <h1 class="mg-topbar-title" id="mg-page-title">Goroutines</h1>
-    <span class="mg-topbar-subtitle" id="mg-page-subtitle">leak detection</span>
-  </div>
+    <div class="mg-rail__foot">
+      <div class="mg-row">
+        <span class="mg-rail__footlabel">STORAGE</span>
+        <span class="mg-rail__footmode" id="mg-storage-mode"></span>
+      </div>
+      <div class="mg-rail__footvalue" id="mg-storage-value"></div>
+    </div>
+  </nav>
 
-  <div class="mg-service-pill" id="mg-service-pill">
-    <span class="mg-service-dot" id="mg-service-dot" aria-hidden="true"></span>
-    <span class="mg-service-name" id="mg-topbar-state">—</span>
-  </div>
+  <div class="mg-main">
+    <header class="mg-top">
+      <button type="button" class="mg-iconbtn mg-top__menu" id="mg-topbar-menu"
+              aria-label="Toggle navigation" aria-expanded="false">
+        <svg class="mg-icon" aria-hidden="true"><use href="#i-menu"></use></svg>
+      </button>
+      <span class="mg-top__title">Goroutines</span>
+      <span class="mg-top__sub" id="mg-asof"></span>
+      <div class="mg-top__right">
+        <button type="button" class="mg-live is-live" id="mg-live" aria-pressed="true"
+                aria-label="Toggle live polling">
+          <i aria-hidden="true"></i><span id="mg-live-label">LIVE</span>
+        </button>
+        <button type="button" class="mg-iconbtn" id="mg-theme-toggle" title="Toggle theme"
+                aria-label="Toggle theme">
+          <svg class="mg-icon" aria-hidden="true"><use href="#i-moon" id="mg-theme-icon"></use></svg>
+        </button>
+      </div>
+    </header>
 
-  <div class="mg-topbar-actions">
-    <button type="button" class="mg-live is-live" id="mg-live" aria-pressed="true"
-            aria-label="Toggle live polling">
-      <span class="mg-live-dot" aria-hidden="true"></span>
-      <span class="mg-live-label" id="mg-live-label">LIVE</span>
-    </button>
+    <!-- Connection state. Filled by common.js when a poll fails; the numbers
+         below dim at the same time so they cannot be read as current. -->
+    <div id="mg-banner" hidden></div>
 
-    <button type="button" class="mg-iconbtn" id="mg-theme-toggle" title="Toggle theme"
-            aria-label="Toggle theme">
-      <svg class="mg-icon" aria-hidden="true" focusable="false"><use href="#i-moon" id="mg-theme-icon"></use></svg>
-    </button>
-  </div>
-</header>
-<main class="mg-main" id="mg-main">
+    <!-- The leak verdict belongs here as well as on the Goroutines page: it is
+         the one thing an operator should not have to go looking for. -->
+    <div id="mg-leak" hidden></div>
+
+    <main class="mg-content" id="mg-content">
+      <div class="mg-stack">
+
 
   <!-- Summary row: live count, state breakdown, longest blocked, verdict. -->
   <section class="mg-gor-summary">
@@ -256,21 +173,13 @@
       <pre class="mg-gor-stack" hidden></pre>
     </div>
   </template>
-</main>
+      </div>
+    </main>
+  </div>
+</div>
 
-    </div>
-    <!-- Wrapper End-->
-    <footer class="mg-footer">
-        <span id="mg-footer-year"></span> &copy;
-        <a href="https://github.com/iyashjayesh/monigo/releases" target="_blank" rel="noopener">MoniGo</a>
-    </footer>
-    <!-- Backend Bundle JavaScript -->
-    <script src="./js/core/backend-bundle.min.js"></script>
-    <script src="./js/core/app.js"></script>
-
-    <!-- Main JavaScript -->
-    <!-- <script src="./js/core//main.js" defer></script> -->
     <script src="./js/common.js" defer></script>
     <script src="./js/goroutines-view.js" defer></script>
+</body>
 
 </html>
