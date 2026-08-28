@@ -131,6 +131,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---------------------------------------------------------------- fetch
 
+    /*
+     * Reports does not poll: it answers a question about a window you chose,
+     * and re-fetching it every fifteen seconds would move the ground under a
+     * reader. It still routes success and failure through MG so the as-of
+     * stamp and the disconnected banner behave as they do everywhere else.
+     */
     function load() {
         const end = new Date();
         const start = new Date(end.getTime() - RANGE_MINUTES[state.range] * 60000);
@@ -157,24 +163,20 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(rows => {
                 state.rows = Array.isArray(rows) ? rows : [];
-                markConnected(true);
+                // A report is a point-in-time answer, so the as-of stamp is if
+                // anything more important here than on a live page: it says
+                // which moment the numbers describe.
+                MG.markOk();
                 render();
             })
             .catch(err => {
                 console.error('[monigo] report failed:', err);
                 state.rows = [];
-                markConnected(false);
+                MG.markFail(err);
                 render(err);
             });
     }
 
-    function markConnected(ok) {
-        const dot = document.getElementById('mg-service-dot');
-        if (dot) {
-            dot.classList.toggle('is-unhealthy', !ok);
-        }
-        set('mg-topbar-state', ok ? 'Connected' : 'Disconnected');
-    }
 
     // --------------------------------------------------------------- render
 

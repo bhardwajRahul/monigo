@@ -132,7 +132,6 @@
         <div class="mg-health-status">
           <span class="mg-health-status__state" id="mg-svc-state">—</span>
           <span class="mg-health-status__detail" id="mg-svc-detail"></span>
-          <span class="mg-health-status__stamp" id="mg-svc-stamp">last check —</span>
         </div>
       </section>
 
@@ -270,9 +269,16 @@
       <section class="mg-card mg-heap-comp" aria-labelledby="mg-heap-comp-title">
         <h2 class="mg-panel-title" id="mg-heap-comp-title">Heap composition</h2>
 
+        <!--
+             Two segments, not four. Go's heap partitions exactly:
+               HeapSys = HeapInuse + HeapIdle
+             Alloc is live objects *inside* the in-use spans and HeapReleased is
+             a subset of the idle ones, so putting either in the bar counts the
+             same bytes twice. Both stay in the legend, which reads them as the
+             nested quantities they are.
+        -->
         <div class="mg-heap-bar" role="img" aria-label="Heap composition proportions">
           <div class="mg-heap-bar__seg mg-heap-bar__seg--inuse" id="mg-heap-seg-inuse"></div>
-          <div class="mg-heap-bar__seg mg-heap-bar__seg--alloc" id="mg-heap-seg-alloc"></div>
           <div class="mg-heap-bar__seg mg-heap-bar__seg--idle"  id="mg-heap-seg-idle"></div>
         </div>
 
@@ -284,7 +290,7 @@
           </li>
           <li class="mg-heap-legend__row">
             <i class="mg-heap-swatch mg-heap-swatch--alloc" aria-hidden="true"></i>
-            <span class="mg-heap-legend__label">Alloc</span>
+            <span class="mg-heap-legend__label">Alloc <em>in use</em></span>
             <span class="mg-heap-legend__value" id="mg-heap-val-alloc">—</span>
           </li>
           <li class="mg-heap-legend__row">
@@ -294,7 +300,7 @@
           </li>
           <li class="mg-heap-legend__row">
             <i class="mg-heap-swatch mg-heap-swatch--released" aria-hidden="true"></i>
-            <span class="mg-heap-legend__label">HeapReleased</span>
+            <span class="mg-heap-legend__label">HeapReleased <em>of idle</em></span>
             <span class="mg-heap-legend__value" id="mg-heap-val-released">—</span>
           </li>
         </ul>

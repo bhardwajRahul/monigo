@@ -159,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderState('mg-svc-state', svc);
         renderState('mg-sys-state', sys);
-        renderState('mg-topbar-state', svc);
 
         const stateEl = document.getElementById('mg-svc-state');
         if (stateEl && svc.message) {
@@ -189,15 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
         bar('cpu', /CPU Usage ([\d.]+)% \/ ([\d.]+)%/.exec(sysMsg));
         bar('mem', /Memory Usage ([\d.]+)% \/ ([\d.]+)%/.exec(sysMsg));
 
-        const dot = document.getElementById('mg-service-dot');
-        if (dot) {
-            dot.classList.remove('is-unhealthy', 'is-degraded');
-            if (svc.healthy === false) {
-                dot.classList.add('is-unhealthy');
-            } else if (isFinite(pct) && pct < 90) {
-                dot.classList.add('is-degraded');
-            }
-        }
     }
 
     function renderState(id, health) {
@@ -397,9 +387,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const idle = num(raw.heap_idle, 'heap_idle');
         const released = num(raw.heap_released, 'heap_released');
 
-        // heap_released is a subset of heap_idle, so it is legend-only and must
-        // not enter the denominator or the bar would sum past 100%.
-        const total = [inuse, alloc, idle].reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
+        /*
+         * Go's heap partitions exactly: HeapSys = HeapInuse + HeapIdle. Those
+         * two are the whole of it, and the only two that belong in the bar.
+         *
+         * Alloc (== HeapAlloc) is live objects *inside* the in-use spans, and
+         * heap_released is a subset of the idle ones. Including either counts
+         * the same bytes twice -- with Alloc in the denominator the bar read
+         * three near-equal thirds and overstated the heap by 50%, because Alloc
+         * tracks HeapInuse closely. Both stay in the legend as the nested
+         * quantities they are.
+         */
+        const total = [inuse, idle].reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
         const seg = (id, v) => {
             const el = document.getElementById(id);
             if (el) {
@@ -407,7 +406,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         seg('mg-heap-seg-inuse', inuse);
-        seg('mg-heap-seg-alloc', alloc);
         seg('mg-heap-seg-idle', idle);
 
         set('mg-heap-val-inuse', formatKB(inuse));
@@ -439,26 +437,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------------------------------ freshness
 
     // The stamp is the time of the last SUCCESSFUL poll, frozen on failure, so
-    // a dead service shows an ageing timestamp rather than a ticking clock
-    // that implies the data is current.
-    function stampNow() {
-        state.lastGood = new Date();
-        set('mg-svc-stamp', 'last check ' + state.lastGood.toTimeString().slice(0, 8));
-    }
 
+    // MG owns the connection state, the banner and the as-of stamp. This only
+    // needs to say what failed, and let the rejection reach MG.Poll.
     function markStale(err) {
-        const dot = document.getElementById('mg-service-dot');
-        if (dot) {
-            dot.classList.add('is-unhealthy');
-        }
-        const stamp = document.getElementById('mg-svc-stamp');
-        if (stamp && state.lastGood) {
-            const age = Math.round((Date.now() - state.lastGood.getTime()) / 1000);
-            stamp.textContent = `last check ${state.lastGood.toTimeString().slice(0, 8)} · ${age}s ago`;
-            stamp.classList.add('is-stale');
-        } else if (stamp) {
-            stamp.textContent = 'no data';
-        }
         console.error('[monigo] metrics poll failed:', err);
     }
 
@@ -479,11 +461,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderKPIs(m);
                 renderHeap(m);
                 renderReadouts(m, info);
-                const stamp = document.getElementById('mg-svc-stamp');
-                if (stamp) {
-                    stamp.classList.remove('is-stale');
-                }
-                stampNow();
             })
             .catch(err => {
                 markStale(err);

@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = { live: true, timer: null, last: null };
 
     function poll() {
-        authenticatedFetch('/monigo/api/v1/go-routines-stats')
+        return authenticatedFetch('/monigo/api/v1/go-routines-stats')
             .then(r => {
                 if (!r.ok) {
                     throw new Error('go-routines-stats responded ' + r.status);
@@ -364,41 +364,16 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 state.last = data;
-                markConnected(true);
                 renderSummary(data);
             })
             .catch(err => {
                 console.error('[monigo] goroutine stats failed:', err);
-                markConnected(false);
+                // Rethrown so MG.Poll can escalate to stale, then down.
+                throw err;
             });
     }
 
-    function markConnected(ok) {
-        const dot = document.getElementById('mg-service-dot');
-        if (dot) {
-            dot.classList.toggle('is-unhealthy', !ok);
-        }
-        set('mg-topbar-state', ok ? 'Connected' : 'Disconnected');
-    }
 
-    function wireLive() {
-        const btn = document.getElementById('mg-live');
-        if (!btn) {
-            return;
-        }
-        btn.addEventListener('click', () => {
-            state.live = !state.live;
-            btn.classList.toggle('is-live', state.live);
-            btn.setAttribute('aria-pressed', String(state.live));
-            set('mg-live-label', state.live ? 'LIVE' : 'PAUSED');
-            if (state.live) {
-                poll();
-                state.timer = setInterval(poll, 15000);
-            } else {
-                clearInterval(state.timer);
-            }
-        });
-    }
 
     function init() {
         authenticatedFetch('/monigo/api/v1/service-info')
@@ -417,9 +392,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         wireDownload(() => state.last);
-        wireLive();
-        poll();
-        state.timer = setInterval(poll, 15000);
+        // MG.Poll owns the interval, the LIVE button, the visibility pause and
+        // the ok -> stale -> down escalation. Before this, only the Overview
+        // had any of that: this page polled on its own timer and would have
+        // gone on showing dead numbers with no banner if the service stopped
+        // answering.
+        MG.Poll.start(poll, 15000);
     }
 
     init();

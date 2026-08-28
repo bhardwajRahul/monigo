@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------------------------------------------- poll
 
     function poll() {
-        authenticatedFetch('/monigo/api/v1/function')
+        return authenticatedFetch('/monigo/api/v1/function')
             .then(r => {
                 if (!r.ok) {
                     throw new Error('function responded ' + r.status);
@@ -300,22 +300,15 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(payload => {
                 state.rows = toRows(payload);
-                markConnected(true);
                 render();
             })
             .catch(err => {
                 console.error('[monigo] function metrics failed:', err);
-                markConnected(false);
+                // Rethrown so MG.Poll can escalate to stale, then down.
+                throw err;
             });
     }
 
-    function markConnected(ok) {
-        const dot = document.getElementById('mg-service-dot');
-        if (dot) {
-            dot.classList.toggle('is-unhealthy', !ok);
-        }
-        set('mg-topbar-state', ok ? 'Connected' : 'Disconnected');
-    }
 
     function wire() {
         const filter = document.getElementById('mg-fn-filter');
@@ -337,20 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
             csv.addEventListener('click', exportCsv);
         }
 
-        const live = document.getElementById('mg-live');
-        if (live) {
-            live.addEventListener('click', () => {
-                const on = !live.classList.contains('is-live');
-                live.classList.toggle('is-live', on);
-                live.setAttribute('aria-pressed', String(on));
-                set('mg-live-label', on ? 'LIVE' : 'PAUSED');
-                clearInterval(state.timer);
-                if (on) {
-                    poll();
-                    state.timer = setInterval(poll, 15000);
-                }
-            });
-        }
     }
 
     function init() {
@@ -370,8 +349,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         wire();
-        poll();
-        state.timer = setInterval(poll, 15000);
+        // MG.Poll owns the interval, the LIVE button, the visibility pause and
+        // the ok -> stale -> down escalation. Before this, only the Overview
+        // had any of that: this page polled on its own timer and would have
+        // gone on showing dead numbers with no banner if the service stopped
+        // answering.
+        MG.Poll.start(poll, 15000);
     }
 
     init();
