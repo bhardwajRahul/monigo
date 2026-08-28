@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-28
+
 ### Security
 - `BasicAuthMiddleware` and `APIKeyMiddleware` now compare credentials with `crypto/subtle.ConstantTimeCompare` -- `!=` short-circuits on the first differing byte and leaks length and prefix information to a timing oracle
 - `ViewFunctionMetrics` validates the function name and report type before invoking `go tool pprof` -- a name beginning with `-` was interpreted as a flag by pprof, and the report type was interpolated straight into the argument list
