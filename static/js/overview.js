@@ -141,7 +141,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (arc) {
                 const filled = Math.max(0, Math.min(100, pct)) / 100 * RING_CIRCUMFERENCE;
                 arc.setAttribute('stroke-dasharray', filled.toFixed(1) + ' ' + RING_CIRCUMFERENCE);
-                severityClass(arc, pct >= 70 ? 'ok' : pct >= 50 ? 'warn' : 'crit');
+                /*
+                 * Colour follows the server's own verdict, not a threshold
+                 * invented here. The server holds the configured limits --
+                 * MaxCPUUsage and friends -- so it is the only thing that knows
+                 * what "healthy" means for this service.
+                 *
+                 * This used to shade the ring on a 70/50 split of its own,
+                 * which produced a brown ring beside the word "Healthy" at
+                 * 68.4%: two answers to the same question, side by side. The
+                 * arc length already carries the degree; the colour carries the
+                 * verdict.
+                 */
+                severityClass(arc, svc.healthy === false ? 'crit' : 'ok');
             }
         }
 

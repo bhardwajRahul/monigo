@@ -243,6 +243,10 @@ body.mg a:hover { text-decoration: underline; }
   padding: 4px 6px; border-radius: var(--r-sm);
 }
 
+/* The badge is empty until /service-info answers, and stays empty when the
+   version is not knowable. [hidden] alone loses to the rule above. */
+.mg-version[hidden] { display: none; }
+
 .mg-svc {
   padding: 12px 16px; display: flex; align-items: center; gap: 10px;
   border-bottom: 1px solid var(--line);

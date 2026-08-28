@@ -68,6 +68,8 @@ func SetServiceInfo(serviceName string, serviceStartTime time.Time, goVersion st
 	serviceInfo.ServiceStartTime = serviceStartTime
 	serviceInfo.GoVersion = goVersion
 	serviceInfo.ProcessId = processId
+	// Read from build info rather than declared, so it cannot go stale.
+	serviceInfo.MonigoVersion = LibraryVersion()
 	retentionPeriod = retention
 }
 

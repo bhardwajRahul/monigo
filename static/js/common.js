@@ -43,9 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
     /*
      * Theme.
      *
-     * The stylesheet keys off body[data-theme]. Dark is the default -- :root
-     * carries the dark palette and light is the opt-in override -- so a first
-     * visit with nothing stored lands on dark.
+     * The stylesheet keys off body[data-theme]. Light is the default, and the
+     * markup carries data-theme="light" so a first visit paints it directly
+     * rather than flashing the :root palette before this runs.
      *
      * The old class-based mechanism (body.dark-theme) and the toggle injected
      * into the vendored navbar both went with that navbar. The storage key and
@@ -70,9 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    let savedTheme = 'dark';
+    let savedTheme = 'light';
     try {
-        savedTheme = localStorage.getItem('monigo-theme') || 'dark';
+        savedTheme = localStorage.getItem('monigo-theme') || 'light';
     } catch (e) {
         /* ignore */
     }
@@ -213,6 +213,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const go = (info.go_version || '').replace(/^go/, '');
                     metaEl.textContent = `pid ${info.process_id || '-'}${go ? ' \u00b7 go' + go : ''}`;
                 }
+                const version = document.getElementById('mg-version');
+                if (version) {
+                    // Read from build info server-side, and omitted when it is
+                    // not knowable -- a local checkout or a replace directive.
+                    // Hidden rather than shown as "(devel)".
+                    version.textContent = info.monigo_version || '';
+                    version.hidden = !info.monigo_version;
+                }
+
                 // Retention and footprint are properties of the instrument, so
                 // they sit in the chrome. Both are omitted by the API when
                 // unset, so absent means "not configured", not "zero".

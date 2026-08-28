@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="./css/monigo-styles.css">
 </head>
 
-<body class="mg">
+<body class="mg" data-theme="light">
 
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true" focusable="false">
       <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
@@ -29,6 +29,10 @@
   <nav class="mg-rail">
     <div class="mg-rail__brand">
       <img src="./assets/monigo-icon.png" alt="MoniGo">
+      <!-- Filled from /service-info, which reads it from build info. Left empty
+           and hidden when the version is not knowable, rather than carrying a
+           literal that goes stale. -->
+      <span class="mg-version" id="mg-version" hidden></span>
     </div>
 
     <div class="mg-svc">

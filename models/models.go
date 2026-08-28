@@ -18,6 +18,12 @@ type ServiceInfo struct {
 	RetentionPeriod string `json:"retention_period,omitempty"`
 	StorageType     string `json:"storage_type,omitempty"`
 	StorageOnDisk   string `json:"storage_on_disk,omitempty"`
+
+	// MonigoVersion is the version of this library compiled into the binary,
+	// read from build info. Omitted when it is not knowable -- a local checkout
+	// or a replace directive -- so the dashboard can hide the badge rather than
+	// show "(devel)".
+	MonigoVersion string `json:"monigo_version,omitempty"`
 }
 
 // ServiceHealthThresholds is the struct to store the service health thresholds

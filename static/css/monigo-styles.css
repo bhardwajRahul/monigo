@@ -828,6 +828,17 @@
 
 /* Expanded detail ---------------------------------------------------------- */
 
+/*
+ * display:flex beats the hidden attribute, whose whole effect is
+ * `display: none` from the UA stylesheet at the lowest possible precedence.
+ * Without this guard the panel stayed on screen after being closed, and an
+ * unopened row still reserved 31px for an empty box -- which is the gap that
+ * appeared under every row in the table.
+ */
+.mg-fn-detail[hidden] {
+    display: none;
+}
+
 .mg-fn-detail {
     padding: 14px 18px 16px 34px;
     background: var(--inset);

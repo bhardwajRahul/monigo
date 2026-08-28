@@ -687,3 +687,81 @@ func TestNoTokenResolvesToItself(t *testing.T) {
 		}
 	}
 }
+
+// The hidden attribute works by applying `display: none` from the UA
+// stylesheet, which sits below every author rule. Any class that sets its own
+// display therefore silently defeats it: the element stays on screen, and
+// JavaScript that sets .hidden = true appears to do nothing.
+//
+// That shipped once. A function row's detail panel used display:flex, so
+// closing it left the panel visible and an unopened row still reserved space
+// for an empty box.
+func TestHiddenAttributeIsNotDefeatedByADisplayRule(t *testing.T) {
+	// The boolean attribute, not aria-hidden and not hidden="...".
+	hiddenAttr := regexp.MustCompile(`(?i)(?:^|[^-\w])hidden(?:\s|>|/)`)
+	tagPattern := regexp.MustCompile(`(?is)<[a-z][^>]*>`)
+	classPattern := regexp.MustCompile(`(?i)class\s*=\s*"([^"]*)"`)
+
+	classes := map[string]string{} // class -> first page that hides it
+	for _, f := range htmlFiles(t) {
+		b, err := fs.ReadFile(staticFiles, f)
+		if err != nil {
+			t.Fatalf("reading %s: %v", f, err)
+		}
+		for _, tag := range tagPattern.FindAllString(stripComments(string(b), path.Ext(f)), -1) {
+			if !hiddenAttr.MatchString(tag) {
+				continue
+			}
+			m := classPattern.FindStringSubmatch(tag)
+			if m == nil {
+				continue
+			}
+			for _, c := range strings.Fields(m[1]) {
+				if _, seen := classes[c]; !seen {
+					classes[c] = f
+				}
+			}
+		}
+	}
+
+	var sb strings.Builder
+	for _, p := range ourStylesheets(t) {
+		b, err := staticFiles.ReadFile(p)
+		if err != nil {
+			t.Fatalf("reading %s: %v", p, err)
+		}
+		sb.WriteString(cssCommentPattern.ReplaceAllString(string(b), ""))
+	}
+	sheet := sb.String()
+
+	names := make([]string, 0, len(classes))
+	for c := range classes {
+		names = append(names, c)
+	}
+	sort.Strings(names)
+
+	// RE2 has no negative lookahead, so the display values are extracted and
+	// compared here rather than excluded in the pattern.
+	for _, c := range names {
+		q := regexp.QuoteMeta(c)
+		rules := regexp.MustCompile(`\.` + q + `(?:[^\w-][^{}]*)?\{([^}]*)\}`)
+		display := regexp.MustCompile(`display\s*:\s*([a-z-]+)`)
+
+		setsVisibleDisplay := false
+		for _, body := range rules.FindAllStringSubmatch(sheet, -1) {
+			for _, d := range display.FindAllStringSubmatch(body[1], -1) {
+				if d[1] != "none" {
+					setsVisibleDisplay = true
+				}
+			}
+		}
+		guarded := regexp.MustCompile(`\.` + q + `\[hidden\]`).MatchString(sheet)
+
+		if setsVisibleDisplay && !guarded {
+			t.Errorf(".%s carries the hidden attribute in %s but also sets its own "+
+				"display, which overrides the UA rule that makes hidden work.\n"+
+				"Add `.%s[hidden] { display: none; }`, or the element stays visible "+
+				"when it is supposed to be hidden.", c, classes[c], c)
+		}
+	}
+}
