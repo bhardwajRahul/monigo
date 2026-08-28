@@ -7,10 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-29
+
+### Security
+- **The dashboard no longer asserts its own privilege.** `authenticatedFetch`
+  attached `X-User-Role: admin` and a hardcoded `monigo-admin-secret` to every
+  request that carried no API key, both lifted from
+  `example/security-examples/custom-auth`, whose auth function grants access for
+  precisely those. A consumer following that documented example got a dashboard
+  that satisfied their own auth check on its own say-so. A browser cannot vouch
+  for itself; custom authentication belongs in the middleware
+- The API key moves from the query string to an `X-API-Key` header. As a query
+  parameter it was recorded in browser history, sent in the `Referer` to any
+  external link the page carried, and written to every access log in between.
+  `APIKeyMiddleware` already accepted both forms
+
+### Changed
+- **The dashboard was rebuilt on the new design.** A 226px rail carrying the
+  service identity, navigation and storage footprint; a top bar with the page
+  title, window control, live indicator and theme toggle; and the failure states
+  the old dashboard had no answer for -- an `as of` stamp, a staleness banner
+  naming the last good reading, and dimmed content so stale numbers cannot be
+  read as current
+- **The embedded payload went from 7.9 MB to 352 KB.** Every byte of it shipped
+  inside every binary importing this library and was downloaded by every
+  `go get`, whether or not the dashboard was ever opened. The vendored Bootstrap
+  template (4.3 MB) was held up by 26 class names and one custom scrollbar;
+  ECharts (1.0 MB) drew a single chart, now inline SVG; 1.8 MB of PNG tile icons
+  and a loading GIF were replaced by an icon sprite
+- The default theme is light, and the theme mechanism moved from a class to
+  `body[data-theme]`. Stored preferences carry over unchanged
+- `GetCPUPrecent` and `GetCPULoad` no longer block. Both called
+  `cpu.Percent(time.Second, ...)`, which *sleeps* for a second to take two
+  samples, and `GET /metrics` reaches both -- so every dashboard poll spent two
+  seconds in the handler before it could answer. **2.05s to 0.01s.** The reading
+  is now taken once, non-blocking, and shared
+
 ### Added
+- `common.LibraryVersion()` reports the version compiled into the binary, read
+  from build info rather than declared as a constant. The dashboard shows it in
+  the rail. A constant is a promise nobody keeps: the footer claimed `v1.0.0`
+  for four releases after it stopped being true
+- `GoroutineLeakReport.Groups` and `GroupsTotal` carry every distinct call
+  stack, not only the offending ones. A breakdown by state cannot be computed
+  from the offenders alone
+- Guardrail tests for the invariants the front end has no other way to check:
+  undefined CSS custom properties (including in HTML `style` attributes),
+  self-referential tokens, tokens defined twice, `hidden` defeated by a
+  `display` rule, dead local page links, hardcoded versions, self-asserted
+  credentials, and the embedded payload budget
+
 - **The sidebar gains the design's shell**: a service identity block (name, PID, Go version and a connection dot), a `MONITOR` section label above the navigation, live counts on the Function Metrics and Go Routines items, and a storage footer showing the backend, retention window and on-disk footprint. All of it is chrome -- true of the instrument rather than of any one page -- so every page shows it and no page fetches it twice
 - `/service-info` exposes `retention_period`, `storage_type` and `storage_on_disk`. `storage_on_disk` is omitted for the in-memory backend, since reporting `0 B` there would read as "nothing stored" rather than "not applicable"
 - `common.GetRetentionPeriodString()` and `timeseries.GetStorageType()`
+### Fixed
+- A function row could be opened but not closed. `hidden` works by applying
+  `display: none` from the UA stylesheet, which loses to every author rule, so
+  `display: flex` silently defeated it. The same rule made every unopened row
+  reserve 31px for an empty box
+- The health ring shaded itself on a threshold invented in the front end while
+  the text beside it used the server's verdict, so a brown ring could sit next
+  to the word "Healthy". The server holds the configured limits and is the only
+  thing that knows what healthy means for a service
+- Three light-theme components put coloured text on a tint of its own colour,
+  which holds on a dark ground and fails on a light one
+
+### Note on v2.0.0
+The `v2.0.0` tag remains unreachable and cannot be retracted. `retract v2.0.0`
+in a module whose path has no `/v2` suffix is itself rejected -- *"version
+v2.0.0 invalid: should be v0 or v1, not v2"* -- so the same rule that stops the
+proxy serving the tag stops it being formally withdrawn. It is inert either way:
+`go get @latest` resolves to the newest v1, and `go list -m -versions` does not
+list it. It survives only on the GitHub releases page.
 
 ## [1.4.0] - 2026-08-28
 
