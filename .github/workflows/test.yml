@@ -30,3 +30,46 @@ jobs:
       with:
         name: coverage
         path: coverage.out
+
+  # The example programs are nested modules with their own go.mod, so the root
+  # `go test ./...` above never compiles them -- and each one has a `replace`
+  # pointing at the working tree, so they are the only check that a change to
+  # MoniGo's public API does not break the code consumers copy from.
+  #
+  # Modules are discovered rather than listed: a new example is covered the
+  # moment it has a go.mod, with nothing to remember to update here.
+  examples:
+    name: Build example modules
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    - name: Build and vet every nested module
+      run: |
+        status=0
+        found=0
+        while IFS= read -r mod; do
+          dir=$(dirname "$mod")
+          found=$((found + 1))
+          echo "::group::$dir"
+          # -o a scratch dir: a bare `go build ./...` drops a binary next to
+          # each main package, which is how compiled examples ended up tracked
+          # in the first place (#72).
+          if (cd "$dir" && go build -o "$(mktemp -d)" ./... && go vet ./...); then
+            echo "ok $dir"
+          else
+            echo "::error file=$mod::$dir failed to build"
+            status=1
+          fi
+          echo "::endgroup::"
+        done < <(find . -name go.mod -not -path './go.mod' | sort)
+
+        echo "checked $found nested module(s)"
+        # A discovery bug that finds nothing would otherwise pass silently.
+        if [ "$found" -eq 0 ]; then
+          echo "::error::no nested modules found -- the discovery step is broken"
+          exit 1
+        fi
+        exit $status
