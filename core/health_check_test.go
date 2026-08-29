@@ -20,13 +20,15 @@ func breachStats() *models.ServiceStats {
 	return stats
 }
 
-// healthyStats returns a ServiceStats whose denominators are large enough that
-// the live process CPU reading cannot dominate the score. Service CPU usage is
-// divided by TotalCores, so a small core count makes the result depend on how
-// busy the machine running the tests happens to be.
+// healthyStats returns a ServiceStats comfortably inside every limit.
+//
+// TotalCores used to be 100000 here, to stop the CPU reading dominating the
+// score: service CPU was divided by the core count and multiplied by 100, so a
+// realistic core count inflated it enough to swamp the fixture. The reading no
+// longer scales with cores, so an ordinary number works.
 func healthyStats() *models.ServiceStats {
 	stats := &models.ServiceStats{}
-	stats.CPUStatistics.TotalCores = 100000
+	stats.CPUStatistics.TotalCores = 8
 	stats.MemoryStatistics.TotalSystemMemory = "100000 MB"
 	stats.MemoryStatistics.MemoryUsedByService = "1 MB"
 	stats.MemoryStatistics.MemoryUsedBySystem = "1 MB"

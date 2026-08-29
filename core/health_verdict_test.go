@@ -1,6 +1,8 @@
 package core
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -128,5 +130,56 @@ func TestOneBlownResourceIsABreach(t *testing.T) {
 	if health.SystemHealth.Healthy || health.ServiceHealth.Healthy {
 		t.Errorf("a breaching fixture still reports Healthy "+
 			"(service=%v system=%v)", health.ServiceHealth.Healthy, health.SystemHealth.Healthy)
+	}
+}
+
+// TestServiceCPUDoesNotScaleWithCoreCount pins the units.
+//
+// Service CPU is percent of one core, the convention gopsutil and `top` use
+// and the one the dashboard already shows under SERVICE CPU LOAD. It used to
+// be divided by the core count and multiplied by 100, which inflated it by
+// 100/TotalCores -- so the same machine reported 1.68% in load_statistics and
+// 17.66% in the health message, and the error grew as machines got smaller.
+//
+// Core count is the only thing that varies here, so if the reading still
+// scales with it, the two runs disagree.
+func TestServiceCPUDoesNotScaleWithCoreCount(t *testing.T) {
+	cpuFor := func(cores float64) float64 {
+		stats := healthyStats()
+		stats.CPUStatistics.TotalCores = cores
+		_, msg, _, err := calculateServiceHealth(stats)
+		if err != nil {
+			t.Fatalf("cores=%.0f: %v", cores, err)
+		}
+		m := regexp.MustCompile(`CPU Usage ([\d.]+)%`).FindStringSubmatch(msg)
+		if m == nil {
+			t.Fatalf("cores=%.0f: no CPU figure in %q", cores, msg)
+		}
+		v, err := strconv.ParseFloat(m[1], 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	// Both readings sample live process CPU, so they will not be bit-identical.
+	// A core-count dependency would differ by 8x here, far outside that noise.
+	four, sixtyFour := cpuFor(4), cpuFor(64)
+	if four > 5 && sixtyFour > 5 {
+		ratio := four / sixtyFour
+		if ratio < 0.5 || ratio > 2 {
+			t.Errorf("service CPU still scales with core count: "+
+				"%.2f%% at 4 cores vs %.2f%% at 64 (ratio %.2f)", four, sixtyFour, ratio)
+		}
+	}
+
+	// The decisive check: with a idle-ish test process and a 95% limit, the
+	// reading must stay well under the limit whatever the core count. Under
+	// the old arithmetic a 4-core host multiplied it by 25.
+	for _, cores := range []float64{1, 2, 4, 8, 64} {
+		if v := cpuFor(cores); v > 100 {
+			t.Errorf("cores=%.0f: service CPU reads %.2f%%, over the whole "+
+				"allowance, for a test process doing nothing", cores, v)
+		}
 	}
 }
