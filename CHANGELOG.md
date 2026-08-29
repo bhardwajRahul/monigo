@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-29
+
+### Added
+- **Per-function call counts and approximate latency percentiles.** `CALLS`,
+  `P50` and `P95` on the Functions table. The distribution comes from a
+  fixed-bucket histogram -- 216 bytes per function regardless of call volume,
+  against ~10 MB at the function cap for keeping raw samples -- so the values
+  are bucket upper bounds rather than interpolations, shown as `~4ms` meaning
+  "at most 4ms". Below 20 calls the columns read `—`: p95 of three calls is the
+  slowest of three, not a percentile
+
 ### Fixed
 - **`GET /metrics` answered HTTP 500 under `RegisterDashboardHandlers` and 404
   under Fiber**, while the same path answered 200 under `RegisterAPIHandlers`.
@@ -19,17 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The API surface was declared separately in five registration sites, which is
   how the above drifted. `routes.go` now declares it once and all five derive
   from it, and a test drives every route through every registration style
-
-### Added
-- **Per-function call counts and approximate latency percentiles.** `CALLS`,
-  `P50` and `P95` on the Functions table. The distribution comes from a
-  fixed-bucket histogram -- 216 bytes per function regardless of call volume,
-  against ~10 MB at the function cap for keeping raw samples -- so the values
-  are bucket upper bounds rather than interpolations, shown as `~4ms` meaning
-  "at most 4ms". Below 20 calls the columns read `—`: p95 of three calls is the
-  slowest of three, not a percentile
-
-### Fixed
 - **A window predating service start returned HTTP 500.** Both read endpoints
   clamp the requested start up to the service start time, so a window *ending*
   before startup became `start > end`, which the storage layer rejects. The
@@ -52,13 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   suite modified a tracked file and left the working tree dirty
 
 ### Known gaps
-Two things the design canvas shows that the dashboard deliberately does not,
-because the data behind them does not exist yet. Both are tracked rather than
-faked, and the columns are absent rather than filled with plausible numbers:
+One thing the design canvas shows that the dashboard deliberately does not,
+because the data behind it does not exist yet. It is tracked rather than faked,
+and the page is absent rather than filled with plausible numbers:
 
 - **Exporters page** — needs Prometheus and OTel status surfaced server-side (#67)
-- **Per-function `CALLS`, `P50`, `P95`** — `FunctionMetrics` overwrites on every
-  call, so there is no distribution to derive them from (#68)
 
 ## [1.5.0] - 2026-08-29
 
