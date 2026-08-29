@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Releases are published by CI from the tag.** Pushing a `v*` tag now checks
+  that `CHANGELOG.md` has a stamped section matching it, then publishes the
+  GitHub release with that section as the notes. A tag pushed without stamping
+  used to produce a release with no notes and a docs site that silently showed
+  nothing new; nothing caught it. The stamping itself stays a reviewed pull
+  request -- deciding what shipped is not a job for a script
+
 ## [1.7.0] - 2026-08-30
 
 ### Added
