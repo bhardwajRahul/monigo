@@ -419,10 +419,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const lo = Math.min(...pts);
         const hi = Math.max(...pts);
-        const span = (hi - lo) || 1;
+        // A series that never moved has no low and no high; scaling it normally
+        // pins it to the floor, which reads as "at its minimum" rather than
+        // "flat". Centre it instead.
+        const flat = hi === lo;
+        const span = hi - lo;
         const d = pts.map((v, i) => {
             const x = (i / (pts.length - 1)) * w;
-            const y = h - 4 - ((v - lo) / span) * (h - 8);
+            const y = flat ? h / 2 : h - 4 - ((v - lo) / span) * (h - 8);
             return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
         }).join(' ');
         return '<svg class="mg-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +

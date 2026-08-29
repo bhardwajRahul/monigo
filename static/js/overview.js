@@ -282,10 +282,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const H = 44;
         const lo = Math.min(...pts);
         const hi = Math.max(...pts);
-        const span = (hi - lo) || 1;
+        /*
+         * A series that never changes has no low and no high. Scaling it the
+         * usual way puts every point at the floor, which reads as "sitting at
+         * its minimum" -- the opposite of "did not move". Flat series are drawn
+         * down the middle instead.
+         */
+        const flat = hi === lo;
+        const span = hi - lo;
         const d = pts.map((v, i) => {
             const x = (i / (pts.length - 1)) * W;
-            const y = H - 4 - ((v - lo) / span) * (H - 8);
+            const y = flat ? H / 2 : H - 4 - ((v - lo) / span) * (H - 8);
             return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
         }).join(' ');
         line.setAttribute('d', d);
@@ -793,12 +800,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const lo = Math.min(...finite);
         const hi = Math.max(...finite);
-        const span = (hi - lo) || 1;
+        // See drawSpark: a series that never moved belongs down the middle, not
+        // pinned to the floor as though it were at its lowest.
+        const flat = hi === lo;
+        const span = hi - lo;
         const inner = PLOT.h - PLOT.pad * 2;
         return values.map((v, i) => ({
             x: (i / (values.length - 1)) * PLOT.w,
             y: typeof v === 'number' && isFinite(v)
-                ? PLOT.h - PLOT.pad - ((v - lo) / span) * inner
+                ? (flat ? PLOT.h / 2 : PLOT.h - PLOT.pad - ((v - lo) / span) * inner)
                 : null,
         }));
     }
