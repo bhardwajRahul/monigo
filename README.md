@@ -14,7 +14,7 @@
 **MoniGo** is a lightweight, embeddable observability library for Go services. It collects runtime metrics (CPU, memory, goroutines, disk/network I/O), traces function execution with pprof profiling, stores time-series data, and serves a real-time dashboard - all from a single `go get`.
 
 <div align="center">
-  <img src="monigo.gif" width="100%" alt="monigo-gif">
+  <img src="https://raw.githubusercontent.com/iyashjayesh/monigo/assets/monigo.gif" width="100%" alt="MoniGo dashboard">
 </div>
 
 ## Features
