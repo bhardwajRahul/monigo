@@ -246,3 +246,52 @@ func TestStorageInstanceIsReinitialisableAfterClose(t *testing.T) {
 		t.Fatalf("CloseStorage (cleanup) error: %v", err)
 	}
 }
+
+// An empty window is not a failure, and the two backends must agree on that.
+//
+// tstorage reports "no data points" as an error while the in-memory backend
+// returns an empty slice. Passing the error through made GET /service-metrics
+// answer 500 for any range the service has not been running long enough to
+// fill -- a freshly started process asking for 24h. The dashboard reads a
+// failed series fetch as a lost connection, so "no history yet" reached the
+// operator as "the service stopped answering".
+func TestEmptyWindowIsNotAnErrorOnEitherBackend(t *testing.T) {
+	far := time.Now().Add(-300 * 24 * time.Hour).Unix()
+	end := far + 3600
+	labels := []Label{{Name: "host", Value: "somewhere"}}
+
+	check := func(t *testing.T, s Storage) {
+		t.Helper()
+		points, err := s.Select("metric_that_was_never_written", labels, far, end)
+		if err != nil {
+			t.Errorf("empty window returned an error: %v\n"+
+				"Both backends must answer an empty window with (nil, nil). "+
+				"Otherwise /service-metrics returns 500 and the dashboard "+
+				"reports the service as disconnected when it simply has no "+
+				"history for that range yet.", err)
+		}
+		if len(points) != 0 {
+			t.Errorf("expected no points, got %d", len(points))
+		}
+	}
+
+	t.Run("memory", func(t *testing.T) {
+		check(t, NewInMemoryStorage())
+	})
+
+	t.Run("disk", func(t *testing.T) {
+		SetStorageType("disk")
+		manager = &storageManager{}
+		t.Cleanup(func() {
+			CloseStorage()
+			SetStorageType("memory")
+			manager = &storageManager{}
+		})
+
+		s, err := GetStorageInstance()
+		if err != nil {
+			t.Fatalf("GetStorageInstance: %v", err)
+		}
+		check(t, s)
+	})
+}

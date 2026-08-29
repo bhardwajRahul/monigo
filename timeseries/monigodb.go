@@ -2,6 +2,7 @@ package timeseries
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,6 +102,23 @@ func (s *StorageWrapper) InsertRows(rows []Row) error {
 func (s *StorageWrapper) Select(metric string, labels []Label, start, end int64) ([]DataPoint, error) {
 	points, err := s.storage.Select(metric, toTStorageLabels(labels), start, end)
 	if err != nil {
+		/*
+		 * An empty window is not a failure. tstorage reports "no data points"
+		 * as an error; the in-memory backend returns an empty slice for the
+		 * same condition. Passing the error through made the two backends
+		 * disagree, and on the default disk backend it surfaced as HTTP 500
+		 * from /service-metrics for any range the service has not been running
+		 * long enough to fill -- a freshly started process asking for 24h.
+		 *
+		 * The dashboard treats a failed series fetch as a lost connection and
+		 * escalates to the disconnected banner, so "no history yet" was
+		 * reported to the operator as "the service stopped answering". The
+		 * empty result is the honest answer, and the front end already has a
+		 * state for it.
+		 */
+		if errors.Is(err, tstorage.ErrNoDataPoints) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return fromTStorageDataPoints(points), nil

@@ -84,16 +84,24 @@
       <span class="mg-top__title">Reports</span>
       <span class="mg-top__sub" id="mg-asof"></span>
       <div class="mg-top__right">
-        <div class="mg-range" id="mg-range" role="group" aria-label="Chart time range">
-          <button type="button" class="mg-range-seg" data-range="5m" aria-pressed="false">5m</button>
-          <button type="button" class="mg-range-seg is-active" data-range="15m" aria-pressed="true">15m</button>
-          <button type="button" class="mg-range-seg" data-range="1h" aria-pressed="false">1h</button>
-          <button type="button" class="mg-range-seg" data-range="24h" aria-pressed="false">24h</button>
-        </div>
-        <button type="button" class="mg-live is-live" id="mg-live" aria-pressed="true"
-                aria-label="Toggle live polling">
-          <i aria-hidden="true"></i><span id="mg-live-label">LIVE</span>
-        </button>
+    <!-- These must match RANGE_MINUTES in reports-view.js. They did not: the
+         shell rebuild gave this page the Overview's group, leaving a 5m button
+         the JS had no entry for -- clicking it produced an Invalid Date and
+         threw a RangeError out of the handler, so the page silently stopped --
+         and a 6h entry with no button. No 5m: at the default 5m sync interval
+         that window can never hold two samples. -->
+    <div class="mg-range" id="mg-range" role="group" aria-label="Report window">
+      <button type="button" class="mg-range-seg" data-range="15m" aria-pressed="false">15m</button>
+      <button type="button" class="mg-range-seg is-active" data-range="1h" aria-pressed="true">1h</button>
+      <button type="button" class="mg-range-seg" data-range="6h" aria-pressed="false">6h</button>
+      <button type="button" class="mg-range-seg" data-range="24h" aria-pressed="false">24h</button>
+    </div>
+        <!-- No LIVE control. A report answers a question about a window you
+             chose; re-fetching every fifteen seconds would move the ground
+             under whoever is reading it. The pill that sat here was
+             permanently green and wired to nothing, asserting a freshness the
+             page never had. The as-of stamp says when it was actually
+             fetched. -->
         <button type="button" class="mg-iconbtn" id="mg-theme-toggle" title="Toggle theme"
                 aria-label="Toggle theme">
           <svg class="mg-icon" aria-hidden="true"><use href="#i-moon" id="mg-theme-icon"></use></svg>

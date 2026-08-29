@@ -219,13 +219,22 @@ func executeFunctionWithProfiling(name string, fn func()) {
 		var err error
 		cpuProfileFile, err = StartCPUProfile(cpuProfFilePath)
 		if err != nil {
+			// Usually "already in use": another traced call is being sampled,
+			// and profiling is process-wide. Clearing the path keeps this call
+			// honest about having no profile rather than pointing at a file
+			// that is empty or belongs to the other call.
 			logger.Log.Warn("failed to start CPU profile", "error", err)
+			cpuProfFilePath = ""
 		}
 	}
 
 	start := time.Now()
 	fn()
 	elapsed := time.Since(start)
+
+	// Every call, not just profiled ones: timing is cheap and the distribution
+	// is only meaningful if it covers everything.
+	observeLatency(name, elapsed)
 
 	if shouldProfile {
 		StopCPUProfile(cpuProfileFile)
@@ -272,9 +281,15 @@ func executeFunctionWithProfiling(name string, fn func()) {
 		}
 	}
 
+	p50, p95, _, reliable := latencySummary(name)
+
 	if m, exists := functionMetrics[name]; exists {
 		m.FunctionLastRanAt = start
 		m.ExecutionTime = elapsed
+		m.CallCount = count
+		m.ApproximateP50 = p50
+		m.ApproximateP95 = p95
+		m.PercentilesReliable = reliable
 		m.GoroutineCount = goroutineDelta
 		if shouldProfile {
 			m.MemoryUsage = memoryUsage
@@ -284,13 +299,17 @@ func executeFunctionWithProfiling(name string, fn func()) {
 		}
 	} else {
 		functionMetrics[name] = &models.FunctionMetrics{
-			FunctionLastRanAt:  start,
-			ExecutionTime:      elapsed,
-			GoroutineCount:     goroutineDelta,
-			MemoryUsage:        memoryUsage,
-			MemoryUsageSampled: shouldProfile,
-			CPUProfileFilePath: cpuProfFilePath,
-			MemProfileFilePath: memProfFilePath,
+			FunctionLastRanAt:   start,
+			ExecutionTime:       elapsed,
+			CallCount:           count,
+			ApproximateP50:      p50,
+			ApproximateP95:      p95,
+			PercentilesReliable: reliable,
+			GoroutineCount:      goroutineDelta,
+			MemoryUsage:         memoryUsage,
+			MemoryUsageSampled:  shouldProfile,
+			CPUProfileFilePath:  cpuProfFilePath,
+			MemProfileFilePath:  memProfFilePath,
 		}
 	}
 }
