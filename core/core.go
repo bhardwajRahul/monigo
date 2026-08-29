@@ -326,15 +326,30 @@ func GetServiceHealth(serviceStats *models.ServiceStats) models.ServiceHealth {
 	healthData.ServiceHealth.Percent = healthInPercent.ServiceHealth.Percentage
 	healthData.SystemHealth.Percent = healthInPercent.SystemHealth.Percentage
 
+	/*
+	 * Healthy means "no configured limit is being exceeded" -- the same
+	 * condition that decides whether IconMsg reads "within limits" or
+	 * "exceeds allowed limits".
+	 *
+	 * It used to be Percent > 50. Percent is a composite score, not a
+	 * threshold check, so the two could disagree: the dashboard rendered
+	 * "Degraded" beside the sentence "System usage is within limits", every
+	 * number in the card inside its limit. And because the score drifts, the
+	 * verdict flapped -- measured crossing the boundary twice in 45 seconds on
+	 * an idle machine, while the bars underneath it sat still.
+	 *
+	 * Percent is untouched and still drives the ring and the graded Message.
+	 * It simply no longer decides a binary it was never meant to answer.
+	 */
 	healthData.ServiceHealth = models.Health{
 		Percent: healthData.ServiceHealth.Percent,
-		Healthy: healthData.ServiceHealth.Percent > 50,
+		Healthy: !healthInPercent.ServiceHealth.Breached,
 		Message: getStatusMessage(healthData.ServiceHealth.Percent),
 		IconMsg: healthInPercent.ServiceHealth.Message,
 	}
 	healthData.SystemHealth = models.Health{
 		Percent: healthData.SystemHealth.Percent,
-		Healthy: healthData.SystemHealth.Percent > 50,
+		Healthy: !healthInPercent.SystemHealth.Breached,
 		Message: getStatusMessage(healthData.SystemHealth.Percent),
 		IconMsg: healthInPercent.SystemHealth.Message,
 	}

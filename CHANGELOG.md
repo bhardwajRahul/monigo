@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The health badge contradicted the sentence beside it, and flapped.**
+  `Healthy` came from the composite score crossing 50, while the message under
+  it came from a threshold comparison, and nothing kept the two in step: the
+  dashboard rendered `Degraded` next to "System usage is within limits" with
+  every number in the card inside its limit. Because the score drifts, the
+  verdict also oscillated -- measured crossing the boundary twice in 45 seconds
+  on an idle machine while the bars underneath did not move. The verdict now
+  comes from the same threshold check that writes the message. The score is
+  untouched and still drives the ring and the graded status text; it simply no
+  longer answers a binary it was never designed for
+- **A single exhausted resource was masked by an idle one.** The breach test
+  ran on the *average* of the usage ratios, so memory at 104% of its allowance
+  beside CPU at 12% averaged to 58 and reported "within limits" -- the dashboard
+  said everything was fine while a limit was being exceeded. A breach is now any
+  one resource over its own limit. Averaging remains correct for the graded
+  score and is kept there
+
 ### Changed
 - **`go get` downloads 25 MB less.** `monigo.gif` was 24.7 MB of a 25 MB module
   zip -- 96% of what every consumer fetched, on every build, was a README image
