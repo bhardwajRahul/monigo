@@ -119,6 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SORTS = {
         exec: (a, b) => b.exec - a.exec,
+        calls: (a, b) => b.calls - a.calls,
+        p95: (a, b) => b.p95 - a.p95,
         mem: (a, b) => b.mem - a.mem,
         gor: (a, b) => b.gor - a.gor,
         last: (a, b) => b.lastMs - a.lastMs,
@@ -133,6 +135,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 pkg: parts.pkg,
                 name: parts.name,
                 exec: Number(m.execution_time) || 0,
+                calls: Number(m.call_count) || 0,
+                p50: Number(m.approximate_p50_ns) || 0,
+                p95: Number(m.approximate_p95_ns) || 0,
+                // False until enough calls have been seen for a percentile to
+                // be a summary rather than an anecdote.
+                percentilesReliable: m.percentiles_reliable === true,
                 mem: Number(m.memory_usage) || 0,
                 // Profiling runs on one call in SamplingRate (100 by default),
                 // so most functions have never had their allocation measured.
@@ -172,6 +180,30 @@ document.addEventListener('DOMContentLoaded', () => {
             node.querySelector('.mg-fn-name').textContent = r.name;
             node.querySelector('.mg-fn-pkg').textContent = r.pkg;
             node.querySelector('.mg-fn-exec').textContent = formatDuration(r.exec);
+            node.querySelector('.mg-fn-calls').textContent =
+                r.calls ? r.calls.toLocaleString() : '—';
+
+            /*
+             * A percentile over a handful of calls is the slowest of a handful,
+             * not a percentile. Below the server's floor these read em dash
+             * rather than a number, for the same reason the runtime chart
+             * refuses to draw a trend through two points.
+             *
+             * The tilde is not decoration: the value is a bucket upper bound,
+             * so "~4ms" means "at most 4ms".
+             */
+            const p50 = node.querySelector('.mg-fn-p50');
+            const p95 = node.querySelector('.mg-fn-p95');
+            if (r.percentilesReliable) {
+                p50.textContent = '~' + formatDuration(r.p50);
+                p95.textContent = '~' + formatDuration(r.p95);
+                p50.title = p95.title = 'Approximate: upper bound of the bucket this quantile falls in';
+            } else {
+                p50.textContent = '—';
+                p95.textContent = '—';
+                p50.title = p95.title = 'Too few calls yet for a percentile to mean anything';
+            }
+
             const memCell = node.querySelector('.mg-fn-mem');
             memCell.textContent = r.memSampled ? formatBytes(r.mem) : '—';
             memCell.title = r.memSampled

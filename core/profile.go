@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -11,12 +12,37 @@ import (
 )
 
 // StartCPUProfile starts the CPU profile and writes it to the specified file.
+/*
+StartCPUProfile begins a CPU profile into filename.
+
+The error from pprof.StartCPUProfile used to be discarded. CPU profiling is a
+process-wide singleton, so when two traced calls are sampled at once the second
+gets "cpu profiling already in use" -- and with the error dropped, this reported
+success, the caller recorded CPUProfileFilePath as though a profile existed, and
+what was actually on disk was the file os.Create had just truncated to zero
+bytes. The dashboard then offered a profile that was empty, or worse, showed one
+function's stacks under another function's name once the first call's
+StopCPUProfile wrote into it.
+
+On failure the truncated file is removed, so the caller can leave the path empty
+and the UI can say "not profiled" -- which is true -- instead of showing an
+empty graph.
+*/
 func StartCPUProfile(filename string) (*os.File, error) {
 	f, err := os.Create(filename)
 	if err != nil {
 		return nil, err
 	}
-	pprof.StartCPUProfile(f)
+	if err := pprof.StartCPUProfile(f); err != nil {
+		f.Close()
+		// Best-effort: the file is a zero-byte artefact of os.Create above and
+		// must not be left behind looking like a profile.
+		if rmErr := os.Remove(filename); rmErr != nil {
+			logger.Log.Warn("removing truncated profile file",
+				"file", filename, "error", rmErr)
+		}
+		return nil, fmt.Errorf("starting CPU profile: %w", err)
+	}
 	return f, nil
 }
 

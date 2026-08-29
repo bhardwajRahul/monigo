@@ -230,6 +230,26 @@ type FunctionMetrics struct {
 	MemoryUsage        uint64 `json:"memory_usage"`
 	MemoryUsageSampled bool   `json:"memory_usage_sampled"`
 
+	// CallCount is how many times this function has been traced. The counter
+	// already existed to drive sampling; it is reported because "how slow" is
+	// hard to read without "how often".
+	CallCount uint64 `json:"call_count"`
+
+	/*
+	 * ApproximateP50 and ApproximateP95 summarise call latency.
+	 *
+	 * Approximate is not a hedge: they come from a fixed-bucket histogram, so
+	 * each is the upper bound of the bucket the quantile falls in, not an
+	 * interpolated value. Read 4ms as "at most 4ms". Bucket resolution is
+	 * enough to find the slow function and not enough to quote as an SLO.
+	 *
+	 * Zero with PercentilesReliable false means too few calls to summarise --
+	 * p95 of three calls is just the slowest of three.
+	 */
+	ApproximateP50      time.Duration `json:"approximate_p50_ns"`
+	ApproximateP95      time.Duration `json:"approximate_p95_ns"`
+	PercentilesReliable bool          `json:"percentiles_reliable"`
+
 	// GoroutineCount is the change in the process-wide goroutine count observed
 	// across the last call: runtime.NumGoroutine() after minus before.
 	//

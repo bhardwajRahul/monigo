@@ -120,6 +120,8 @@
       <span class="mg-eyebrow">SORT</span>
       <select id="mg-fn-sort" class="mg-fn-select" aria-label="Sort functions">
         <option value="exec">exec time</option>
+        <option value="p95">p95</option>
+        <option value="calls">calls</option>
         <option value="mem">memory</option>
         <option value="gor">goroutines</option>
         <option value="last">last ran</option>
@@ -136,7 +138,15 @@
            as empty columns implying a value is coming. -->
       <div class="mg-fn-thead" role="row">
         <span role="columnheader">FUNCTION</span>
+        <span role="columnheader" class="mg-num">CALLS</span>
         <span role="columnheader" class="mg-num">EXEC TIME</span>
+        <!-- Titled, because "approximate" is load-bearing: these come from a
+             fixed-bucket histogram, so each is the upper bound of its bucket
+             rather than an interpolated value. -->
+        <span role="columnheader" class="mg-num"
+              title="Approximate: bucket upper bound, not an interpolated value">P50</span>
+        <span role="columnheader" class="mg-num"
+              title="Approximate: bucket upper bound, not an interpolated value">P95</span>
         <span role="columnheader" class="mg-num">MEM &Delta;</span>
         <span role="columnheader" class="mg-num">GORO &Delta;</span>
         <span role="columnheader" class="mg-num">LAST RAN</span>
@@ -154,7 +164,10 @@
           <span class="mg-fn-name"></span>
           <span class="mg-fn-pkg"></span>
         </span>
+        <span class="mg-fn-calls mg-num" role="cell"></span>
         <span class="mg-fn-exec mg-num" role="cell"></span>
+        <span class="mg-fn-p50 mg-num" role="cell"></span>
+        <span class="mg-fn-p95 mg-num" role="cell"></span>
         <span class="mg-fn-mem  mg-num" role="cell"></span>
         <span class="mg-fn-gor  mg-num" role="cell"></span>
         <span class="mg-fn-last mg-num" role="cell"></span>
