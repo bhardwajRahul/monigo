@@ -3,11 +3,10 @@ package common
 import (
 	"os"
 
-	"github.com/iyashjayesh/monigo/internal/logger"
 	"strconv"
-	"time"
 
-	"github.com/shirou/gopsutil/cpu"
+	"github.com/iyashjayesh/monigo/internal/logger"
+
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/shirou/gopsutil/process"
@@ -24,19 +23,14 @@ func GetCPULoad() (serviceCPU, systemCPU, totalCPU string, serviceCPUF, systemCP
 	}
 	serviceCPU = ParseFloat64ToString(serviceCPUF) + "%" // Service CPU usage percentage
 
-	cpuPercents, err := cpu.Percent(time.Second, false) // Get total system CPU percentage
-	if err != nil {
-		logger.Log.Error("fetching CPU load for the system", "error", err)
-		return serviceCPU, "0%", "0%", serviceCPUF, 0, 0
+	// Non-blocking: see SystemCPUPercent. This used to be
+	// cpu.Percent(time.Second, ...), which slept for a second on every call.
+	totalCPUF = SystemCPUPercent()
+	systemCPUF = totalCPUF - serviceCPUF
+	if systemCPUF < 0 {
+		systemCPUF = 0
 	}
-	if len(cpuPercents) > 0 {
-		systemCPUF = cpuPercents[0] - serviceCPUF
-		if systemCPUF < 0 {
-			systemCPUF = 0
-		}
-		systemCPU = ParseFloat64ToString(systemCPUF) + "%" // System CPU usage percentage
-		totalCPUF = cpuPercents[0]
-	}
+	systemCPU = ParseFloat64ToString(systemCPUF) + "%" // System CPU usage percentage
 
 	totalCPU = ParseFloat64ToString(totalCPUF) + "%" // Total CPU usage percentage
 	return serviceCPU, systemCPU, totalCPU, serviceCPUF, systemCPUF, totalCPUF

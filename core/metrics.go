@@ -3,12 +3,10 @@ package core
 import (
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/iyashjayesh/monigo/common"
 	"github.com/iyashjayesh/monigo/internal/logger"
 	"github.com/iyashjayesh/monigo/models"
-	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/shirou/gopsutil/process"
 )
@@ -19,20 +17,13 @@ var (
 	serviceHealthThresholds models.ServiceHealthThresholds
 )
 
-// GetCPUPrecent returns the total number of requests
+// GetCPUPrecent returns total system CPU utilisation as a percentage.
+//
+// Non-blocking: see common.SystemCPUPercent. This used to be
+// cpu.Percent(time.Second, ...), and GET /metrics reaches this and
+// common.GetCPULoad, so a dashboard poll spent two seconds here.
 func GetCPUPrecent() (float64, error) {
-	cpuPercents, err := cpu.Percent(time.Second, false)
-	if err != nil {
-		logger.Log.Error("Error fetching CPU usage", "error", err)
-		return 0, err
-	}
-
-	var total float64
-	for _, percent := range cpuPercents {
-		total += percent
-	}
-
-	return total / float64(len(cpuPercents)), nil
+	return common.SystemCPUPercent(), nil
 }
 
 // GetVirtualMemoryStats returns the virtual memory statistics

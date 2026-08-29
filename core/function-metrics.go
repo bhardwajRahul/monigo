@@ -234,18 +234,31 @@ func executeFunctionWithProfiling(name string, fn func()) {
 		}
 	}
 
-	finalGoroutines := runtime.NumGoroutine() - initialGoroutines
-	if finalGoroutines < 0 {
-		finalGoroutines = 0
-	}
+	// Process-wide, not per-function: any other goroutine starting or finishing
+	// during the call moves this. The sign is kept -- clamping negatives to
+	// zero meant a call that let goroutines finish looked identical to one that
+	// did nothing, which is the opposite of the truth.
+	goroutineDelta := runtime.NumGoroutine() - initialGoroutines
 
 	var memoryUsage uint64
 	if shouldProfile {
 		var memStatsAfter runtime.MemStats
 		runtime.ReadMemStats(&memStatsAfter)
-		if memStatsAfter.Alloc >= memStatsBefore.Alloc {
-			memoryUsage = memStatsAfter.Alloc - memStatsBefore.Alloc
-		}
+		/*
+		 * TotalAlloc, not Alloc.
+		 *
+		 * Alloc is bytes currently live, so a GC during the call drops it and
+		 * the difference goes negative. The old code guarded that with
+		 * `if after.Alloc >= before.Alloc` and otherwise reported zero -- which
+		 * meant a heavy allocator that happened to trigger a collection was
+		 * recorded as allocating nothing. main.highMemoryUsage measured 0 for
+		 * exactly this reason.
+		 *
+		 * TotalAlloc is cumulative and never decreases, so the difference is
+		 * the bytes this call actually allocated whether or not the collector
+		 * ran. It cannot go negative, so no guard is needed.
+		 */
+		memoryUsage = memStatsAfter.TotalAlloc - memStatsBefore.TotalAlloc
 	}
 
 	mu.Lock()
@@ -262,9 +275,10 @@ func executeFunctionWithProfiling(name string, fn func()) {
 	if m, exists := functionMetrics[name]; exists {
 		m.FunctionLastRanAt = start
 		m.ExecutionTime = elapsed
-		m.GoroutineCount = finalGoroutines
+		m.GoroutineCount = goroutineDelta
 		if shouldProfile {
 			m.MemoryUsage = memoryUsage
+			m.MemoryUsageSampled = true
 			m.CPUProfileFilePath = cpuProfFilePath
 			m.MemProfileFilePath = memProfFilePath
 		}
@@ -272,8 +286,9 @@ func executeFunctionWithProfiling(name string, fn func()) {
 		functionMetrics[name] = &models.FunctionMetrics{
 			FunctionLastRanAt:  start,
 			ExecutionTime:      elapsed,
-			GoroutineCount:     finalGoroutines,
+			GoroutineCount:     goroutineDelta,
 			MemoryUsage:        memoryUsage,
+			MemoryUsageSampled: shouldProfile,
 			CPUProfileFilePath: cpuProfFilePath,
 			MemProfileFilePath: memProfFilePath,
 		}

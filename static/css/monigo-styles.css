@@ -1,1294 +1,1069 @@
 /* ==========================================================================
-   Design tokens
+   MoniGo dashboard -- board styles
    ==========================================================================
 
-   Values are the dashboard design's, mapped onto MoniGo's semantic token names
-   so existing rules keep working. Source: `MoniGo Dashboard (fixed).html`;
-   mapping and rationale in DESIGN-ADOPTION.md.
+   The shell (rail, top bar, app frame, cards' base chrome) lives in
+   monigo-design.css. This file styles only what sits inside the content
+   area: the health strip, KPI tiles, plots, and the three data boards.
 
-   Light stays the default theme, as it is today -- `common.js` reads
-   `monigo-theme` from localStorage and falls back to light. The design is
-   dark-first, so flipping the default is a deliberate decision, not something
-   to inherit from a stylesheet edit. It is a one-line change if wanted.
+   Everything that used to be here overriding the vendored Bootstrap
+   template went with the template itself.
 
-   Every text pair clears WCAG AA (4.5:1); every control boundary and the focus
-   ring clear 3:1. Ratios are stated inline and were computed against the
-   surface each colour actually sits on.
-
-   Three values differ from the design export because the export failed its own
-   floors -- see DESIGN-ADOPTION.md section 1:
-     --ink-subtle (dark)      #59626F 2.99:1 -> #778292 4.75:1  (90 usages)
-     --hairline-strong (both) 1.68/1.88      -> 3.16/3.20
-     --accent-on-fill (dark)  a self-referential custom property -> #04121A
+   Token names below are the board vocabulary (--surface-1, --ink-muted,
+   --accent...). monigo-design.css defines them as aliases of its own
+   (--pan, --dim, --acc...), so both files paint from one palette.
    ========================================================================== */
 
-:root {
-    /* -- Type ------------------------------------------------------------- */
-    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont,
-        "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono",
-        Menlo, Consolas, monospace;
+/* ─── shared primitives ─────────────────────────────────────────────────── */
 
-    /* The design runs 10-16px across nine steps with no display tier, which is
-       denser than a marketing-derived scale and correct for an operator
-       reading a screen full of numbers. Reduced here to six named steps. */
-    --t-micro: 10px;
-    --t-micro-lh: 14px;
-    --t-micro-w: 500;
-    /* uppercase eyebrows: SERVICE CPU LOAD, MONITOR, PID */
-    --t-meta: 11.5px;
-    --t-meta-lh: 16px;
-    --t-meta-w: 400;
-    /* units, timestamps, axis ticks, legends */
-    --t-code: 12px;
-    --t-code-lh: 19px;
-    --t-code-w: 400;
-    /* MONO ONLY: stack traces, pprof output, values */
-    --t-body: 13px;
-    --t-body-lh: 19px;
-    --t-body-w: 400;
-    /* default UI text and every table cell */
-    --t-head: 15px;
-    --t-head-lh: 21px;
-    --t-head-w: 600;
-    /* card titles, page headings */
-    --t-stat: 24px;
-    --t-stat-lh: 28px;
-    --t-stat-w: 600;
-    /* the one big number per metric tile */
-
-    /* -- Space. 8px grid, two finer steps, stops at 32px. ------------------ */
-    --s-1: 2px;
-    --s-2: 4px;
-    --s-3: 8px;
-    --s-4: 12px;
-    --s-5: 16px;
-    --s-6: 24px;
-    --s-7: 32px;
-
-    /* -- Radius. The design uses 12 distinct radii; disciplined to three. -- */
-    --r-sm: 5px;
-    /* badges, chips, inline code */
-    --r-md: 8px;
-    /* buttons, inputs, list rows, code blocks */
-    --r-lg: 12px;
-    /* cards, panels, modals */
-
-    /* -- Elevation. Dark replaces these with borders below. --------------- */
-    --sh-1: 0 1px 2px rgba(8, 11, 16, .05);
-    --sh-2: 0 1px 3px rgba(8, 11, 16, .06), 0 4px 12px -4px rgba(8, 11, 16, .08);
-    --sh-3: 0 12px 32px -8px rgba(8, 11, 16, .16);
-
-    /* ================== LIGHT THEME (default) ========================== */
-
-    /* Surfaces. bg < inset == surface-2/3 < surface-1 in this theme: cards are
-       the brightest plane and the page recedes behind them. */
-    --canvas: #F3F5F9;
-    --surface-1: #FFFFFF;
-    --surface-2: #F7F9FC;
-    --surface-3: #F7F9FC;
-    --inset: #F7F9FC;
-    /* code wells, recessed panels */
-
-    --hairline: #E3E8EF;
-    /* dividers, table rules, chart gridlines -- deliberately sub-3:1 */
-    --hairline-soft: #EDF0F5;
-    /* in-card row dividers, quieter than the card edge */
-    --hairline-strong: #8191AB;
-    /* 3.20:1 -- control borders. A 1.9:1 border is an input you cannot find */
-
-    --ink: #0E141B;
-    /* 18.51:1 */
-    --ink-muted: #5B6674;
-    /* 5.84:1 -- secondary labels, table headers */
-    --ink-subtle: #6B7686;
-    /* 4.60:1 -- units, timestamps, axes, eyebrows */
-    --ink-disabled: #A3ACBA;
-    /* 2.35:1 -- DISABLED AND PLACEHOLDER ONLY, never readable text */
-
-    --accent: #00758F;
-    /* 5.33:1 as text */
-    --accent-press: #005E73;
-    --accent-text: #00758F;
-    --accent-on-fill: #FFFFFF;
-    /* 5.33:1 on --accent */
-    --accent-tint: color-mix(in srgb, var(--accent) 10%, transparent);
-
-    --focus: #00758F;
-    /* the accent doubles as the focus ring; 3.20:1 against white */
-
-    /* Status. Five states: an observability dashboard that cannot say
-       "no data" says "fine" instead. */
-    --ok-fill: #0F7A4F;
-    --ok-text: #0F7A4F;
-    /* 5.36:1 */
-    --ok-tint: color-mix(in srgb, var(--ok-fill) 12%, transparent);
-    --warn-fill: #A15600;
-    --warn-text: #A15600;
-    /* 5.46:1 */
-    --warn-tint: color-mix(in srgb, var(--warn-fill) 12%, transparent);
-    --crit-fill: #C0273C;
-    --crit-text: #C0273C;
-    /* 5.84:1 */
-    --crit-tint: color-mix(in srgb, var(--crit-fill) 12%, transparent);
-    --info-fill: #5B49D6;
-    --info-text: #5B49D6;
-    /* 6.23:1 */
-    --info-tint: color-mix(in srgb, var(--info-fill) 12%, transparent);
-    --unknown-fill: #6B7686;
-    --unknown-text: #5B6674;
-    /* 5.84:1 */
-    --unknown-tint: color-mix(in srgb, var(--unknown-fill) 12%, transparent);
-
-    /* Chart chrome. Never a series colour. */
-    --grid-line: #E9EDF3;
-    --axis-line: #E3E8EF;
-    --thr-line: #C0273C;
-
-    /* Chart series. The design's own hues, ordered. No green in the first
-       three: teal sits where green would, so a chart cannot accidentally
-       signal "healthy". Green belongs to status alone. */
-    --series-1: #00758F;
-    /* cyan-teal   5.33:1 */
-    --series-2: #5B49D6;
-    /* violet      6.23:1 */
-    --series-3: #A15600;
-    /* amber       5.46:1 */
-    --series-4: #C0273C;
-    /* crimson     5.84:1 */
-    --series-5: #0F7A4F;
-    /* green       5.36:1 */
-    --series-6: #5B6674;
-    /* slate       5.84:1 */
+/* Every panel in the overview is the same card: design repeats
+   background:var(--pan);border:1px solid var(--line);border-radius:12px
+   on all six panels. */
+.mg-card{
+  background:var(--surface-1);
+  border:1px solid var(--hairline);
+  border-radius:var(--r-lg);            /* 12px — exact token match */
+  min-width:0;
 }
 
-body.dark-theme {
-    /* Surfaces. Note the ordering inverts: canvas < inset < surface-1 <
-       surface-2/3. The page is the darkest plane and cards lift off it. */
-    --canvas: #080B10;
-    --surface-1: #0F141B;
-    --surface-2: #151B24;
-    --surface-3: #151B24;
-    --inset: #0B0F15;
+/* Uppercase mono eyebrow. Design uses 9.5px in FOUR places (SYSTEM HEALTH,
+   KPI eyebrows, NET SENT/PID readout labels, functions table header).
+   --t-micro is 10px; 9.5px is kept literal — see CONFLICT 3. */
+.mg-eyebrow{
+  font-family:var(--font-mono);
+  font-size:9.5px;
+  font-weight:500;
+  line-height:1;
+  color:var(--ink-subtle);
+  white-space:nowrap;
+}
+/* letter-spacing differs per element in the design; only the two "wide"
+   eyebrows (SYSTEM HEALTH, KPI) carry .11em. Readout labels carry NONE. */
+.mg-eyebrow--wide{ letter-spacing:.11em; }
 
-    --hairline: #1D2531;
-    --hairline-soft: #161D27;
-    --hairline-strong: #526683;
-    /* 3.16:1 -- control borders */
-
-    --ink: #E7EBF1;
-    /* 15.45:1 */
-    --ink-muted: #8892A2;
-    /* 5.88:1 */
-    --ink-subtle: #778292;
-    /* 4.75:1 -- raised from the export's #59626F, which was 2.99:1 across
-       90 usages: nav headers, `pid ... · go...`, retention footer */
-    --ink-disabled: #4A5361;
-    /* 2.24:1 -- disabled and decorative only */
-
-    --accent: #00B4E6;
-    /* 7.63:1 as text */
-    --accent-press: #33C3EB;
-    --accent-text: #00B4E6;
-    --accent-on-fill: #04121A;
-    /* 7.84:1 on --accent. The export had `--onacc: var(--onacc)`, a
-       self-reference, so every accent button inherited --ink at 2.02:1 */
-    --accent-tint: color-mix(in srgb, var(--accent) 14%, transparent);
-
-    --focus: #00B4E6;
-    /* 7.63:1 against --surface-1 */
-
-    --ok-fill: #5FD39B;
-    --ok-text: #5FD39B;
-    /* 9.93:1 */
-    --ok-tint: color-mix(in srgb, var(--ok-fill) 14%, transparent);
-    --warn-fill: #FFA24B;
-    --warn-text: #FFA24B;
-    /* 9.26:1 */
-    --warn-tint: color-mix(in srgb, var(--warn-fill) 13%, transparent);
-    --crit-fill: #FF6B7A;
-    --crit-text: #FF6B7A;
-    /* 6.72:1 */
-    --crit-tint: color-mix(in srgb, var(--crit-fill) 10%, transparent);
-    --info-fill: #8B7BF7;
-    --info-text: #8B7BF7;
-    /* 5.52:1 */
-    --info-tint: color-mix(in srgb, var(--info-fill) 12%, transparent);
-    --unknown-fill: #778292;
-    --unknown-text: #8892A2;
-    /* 5.88:1 */
-    --unknown-tint: color-mix(in srgb, var(--unknown-fill) 14%, transparent);
-
-    --grid-line: #171E28;
-    --axis-line: #1D2531;
-    --thr-line: #FF6B7A;
-
-    --series-1: #00B4E6;
-    /* cyan       7.63:1 */
-    --series-2: #8B7BF7;
-    /* violet     5.52:1 */
-    --series-3: #FFA24B;
-    /* amber      9.26:1 */
-    --series-4: #FF6B7A;
-    /* crimson    6.72:1 */
-    --series-5: #5FD39B;
-    /* green      9.93:1 */
-    --series-6: #8892A2;
-    /* slate      5.88:1 */
-
-    /* Depth from hairlines, not shadows: a drop shadow on a near-black ground
-       is grey haze carrying no information. */
-    --sh-1: none;
-    --sh-2: 0 0 0 1px var(--hairline-strong), 0 8px 24px -8px rgba(0, 0, 0, .7);
-    --sh-3: 0 0 0 1px var(--hairline-strong), 0 16px 40px -12px rgba(0, 0, 0, .8);
+.mg-panel-title{
+  margin:0;
+  font-family:var(--font-sans);
+  font-size:var(--t-body);              /* 13px — design literal */
+  font-weight:600;                      /* overrides --t-body-w 400 */
+  line-height:1.2;
+  color:var(--ink);
 }
 
-.loader-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+.mg-num{ text-align:right; font-variant-numeric:tabular-nums; }
+.mg-hrule{ height:1px; background:var(--hairline); }
+.mg-vrule{ width:1px; align-self:stretch; background:var(--hairline); }
+
+/* Severity. ONE ladder for the whole page. The DOT palette and the TEXT
+   palette differ on purpose (design lines 1297-1298): a healthy dot is green,
+   a healthy numeral is plain ink — a table where every good row is green is
+   unreadable. */
+.mg-sev-ok   { color:var(--ink);        }
+.mg-sev-warn { color:var(--warn-text);  }
+.mg-sev-crit { color:var(--crit-text);  }
+.mg-dot.mg-sev-ok   { background:var(--ok-text);   }
+.mg-dot.mg-sev-warn { background:var(--warn-text); }
+.mg-dot.mg-sev-crit { background:var(--crit-text); }
+
+/* Shared sparkline. Used by the four KPI tiles. Geometry differs per host,
+   so only paint lives here. */
+.mg-spark{ display:block; }
+.mg-spark__area{ fill:color-mix(in srgb, var(--mg-series) 15%, transparent); stroke:none; }
+.mg-spark__line{ fill:none; stroke:var(--mg-series); stroke-width:1.6; }
+
+.mg-icon{ width:15px; height:15px; display:block; fill:none; stroke:currentColor; stroke-width:1.4; }
+.mg-hot__row:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+
+/* ═══ 2. HEALTH STRIP  (design 529-572) ════════════════════════════════════ */
+
+.mg-health-strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%,560px), 1fr));
+  gap:14px;
+}
+.mg-health-card--service{ padding:var(--s-5); display:flex; gap:var(--s-5); align-items:center; }  /* 16px */
+.mg-health-card--system { padding:14px var(--s-5); display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+
+/* --- ring: 88x88, r=37, stroke 8. C = 2πr = 232.478; design hard-codes 232.5.
+       rotate(-90 44 44) starts the arc at 12 o'clock and sweeps clockwise.
+       The dasharray GAP is a full circumference, so any dash ≤232.5 draws one arc. */
+.mg-ring{ position:relative; width:88px; height:88px; flex:none; }
+.mg-ring__svg{ display:block; }
+.mg-ring__track{ stroke:var(--hairline); }
+.mg-ring__arc{ stroke:var(--ok-text); transition:stroke-dasharray .35s ease; }
+.mg-ring__arc.mg-sev-warn{ stroke:var(--warn-text); }
+.mg-ring__arc.mg-sev-crit{ stroke:var(--crit-text); }
+.mg-ring__center{ position:absolute; inset:0; display:flex; flex-direction:column;
+                  align-items:center; justify-content:center; }
+.mg-ring__value{ font:600 21px var(--font-mono); letter-spacing:-.02em; color:var(--ink); }
+.mg-ring__caption{ font:500 8.5px var(--font-mono); letter-spacing:.1em; color:var(--ink-subtle); }
+
+.mg-health-status{ min-width:0; display:flex; flex-direction:column; gap:6px; }
+.mg-health-status__state { font-weight:600; font-size:13.5px; }
+.mg-health-status__detail{ font-size:var(--t-meta); line-height:1.5; color:var(--ink-muted); }
+.mg-health-status__stamp { font:500 10.5px var(--font-mono); color:var(--ink-subtle); }
+
+.mg-sys-health__head{ display:flex; flex-direction:column; gap:5px; flex:none; }
+
+/* --- threshold bars: 5px track, 3px radius, overflow hidden, flat fill.
+       No marker is drawn in the strip — the threshold lives in the text. */
+.mg-bars{ flex:1 1 260px; display:flex; flex-direction:column; gap:9px; min-width:220px; }
+.mg-bar{ display:flex; flex-direction:column; gap:5px; }
+.mg-bar__row{ display:flex; justify-content:space-between; font:500 11px var(--font-mono); }
+.mg-bar__name { color:var(--ink-muted); }
+.mg-bar__value{ color:var(--ink); }
+.mg-bar__track{ height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; }
+.mg-bar__fill { height:100%; width:0; background:var(--accent); transition:width .3s ease; }
+.mg-bar__fill.mg-sev-ok  { background:var(--ok-text);   }
+.mg-bar__fill.mg-sev-warn{ background:var(--warn-text); }
+.mg-bar__fill.mg-sev-crit{ background:var(--crit-text); }
+
+
+/* ═══ READOUTS — shared, two size variants  (design 565-570 vs 652-657) ════ */
+/* The design genuinely uses two: the PID/GO/UPTIME/CORES block is gap 2px
+   with a 12px value; the NET/STACK/SWAP block is gap 3px with a 13px value.
+   Both are preserved. See CONFLICT 4. */
+.mg-readout{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.mg-readout--sm{ gap:var(--s-1); }                      /* 2px */
+.mg-readout__label{
+  font-family:var(--font-mono); font-size:9.5px; font-weight:500;
+  line-height:var(--t-micro-lh); color:var(--ink-subtle); white-space:nowrap;
+}
+.mg-readout__value{
+  font-family:var(--font-mono); font-size:var(--t-body); font-weight:500;   /* 13px */
+  line-height:var(--t-body-lh); color:var(--ink);
+  white-space:nowrap; font-variant-numeric:tabular-nums;
+}
+.mg-readout--sm .mg-readout__value{ font-size:var(--t-code); }              /* 12px */
+
+.mg-readouts--proc{ display:grid; grid-template-columns:repeat(2,auto); gap:10px 22px; flex:none; }
+.mg-readouts--io  { display:grid; grid-template-columns:1fr 1fr; gap:var(--s-4); }  /* 12px */
+
+
+/* ═══ 3. KPI TILES  (design 573-607) ═══════════════════════════════════════ */
+
+.mg-kpi-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(210px,1fr)); gap:14px; }
+
+/* padding-bottom is ZERO: the sparkline is the last flex child and lands
+   flush on the inner bottom edge; overflow:hidden clips its bled edges to
+   the 12px radius. 15px horizontal padding is LOAD-BEARING — it must equal
+   the sparkline's negative margin or the full bleed breaks. */
+.mg-kpi-tile{
+  padding:14px 15px 0;
+  display:flex; flex-direction:column; gap:3px;
+  overflow:hidden;
+}
+.mg-kpi-figures{ display:flex; align-items:baseline; flex-wrap:nowrap; white-space:nowrap; gap:7px; }
+.mg-kpi-value{
+  font-family:var(--font-mono); font-size:26px; font-weight:600;   /* NOT --t-stat 24px */
+  letter-spacing:-.03em; color:var(--ink);
+}
+/* The unit sets NO font-family in the design — it inherits the SANS body face
+   beside a mono number. That contrast is what makes it read as a label. */
+.mg-kpi-unit{ font-family:var(--font-sans); font-size:var(--t-code); color:var(--ink-subtle); }
+.mg-kpi-secondary{
+  margin-left:auto;
+  font-family:var(--font-mono); font-size:11px; font-weight:500;
+  color:var(--ink-muted);
+}
+.mg-kpi-secondary.is-warn{ color:var(--warn-text); }
+
+/* bleed: 15px padding each side → -15px margins + width calc(100% + 30px).
+   height 44 against viewBox height 44 with preserveAspectRatio=none makes the
+   VERTICAL scale exactly 1:1, so the polyline sits in y 4..40 — a pixel-exact
+   4px inset. The horizontal stretch is why the stroke needs
+   vector-effect="non-scaling-stroke". */
+.mg-kpi-spark{ width:calc(100% + 30px); height:44px; margin:6px -15px 0; flex:none; }
+
+/* Series identity, NOT health. Each tile's hue ties it to its line in the
+   Runtime load chart below. Goroutines is amber because it is series-3. */
+.mg-kpi-tile--cpu       { --mg-series:var(--series-1); }   /* accent    */
+.mg-kpi-tile--heap      { --mg-series:var(--series-2); }   /* violet    */
+.mg-kpi-tile--goroutines{ --mg-series:var(--series-3); }   /* amber     */
+.mg-kpi-tile--gc        { --mg-series:var(--series-5); }   /* green     */
+
+
+/* ═══ 4. CHART ROW  (design 611-658) ═══════════════════════════════════════ */
+
+.mg-chart-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%,520px), 1fr));
+  gap:14px;
 }
 
-.bouncing-dots {
-    display: flex;
-    justify-content: space-between;
-    width: 40px;
+/* --- Runtime load --- */
+.mg-runtime-load{ padding:var(--s-5) 18px var(--s-4); display:flex; flex-direction:column; }
+.mg-panel-head{ display:flex; align-items:center; gap:var(--s-5); margin-bottom:14px; }
+
+.mg-legend{ margin:0 0 0 auto; padding:0; list-style:none; display:flex; gap:14px; }
+.mg-legend__item{
+  display:flex; align-items:center; gap:6px;
+  font-family:var(--font-mono); font-size:11px; font-weight:500; line-height:1;
+  color:var(--ink-muted); white-space:nowrap;
+}
+/* Solid bar even for the dashed goroutines series — do not dash the swatch. */
+.mg-legend__swatch{ display:block; width:9px; height:2.5px; border-radius:2px; flex:none; }
+.mg-legend__item--cpu  .mg-legend__swatch{ background:var(--series-1); }
+.mg-legend__item--heap .mg-legend__swatch{ background:var(--series-2); }
+.mg-legend__item--gor  .mg-legend__swatch{ background:var(--series-3); }
+
+.mg-plot{ position:relative; height:262px; }
+.mg-plot__canvas{ width:100%; height:262px; display:block; }
+/* Time labels are DOM, not an ECharts axis. space-between means the first
+   label is left-flush and the last right-flush — they are NOT centred on
+   their ticks. That is the design; do not "fix" it. */
+.mg-plot__axis{
+  position:absolute; left:0; right:0; bottom:-16px;
+  display:flex; justify-content:space-between;
+  font-family:var(--font-mono); font-size:var(--t-micro); font-weight:400; line-height:1;
+  color:var(--ink-subtle); pointer-events:none;
+}
+.mg-plot__gutter{ height:18px; flex:none; }
+.mg-plot__empty{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--s-3);
+  font-size:var(--t-meta); color:var(--ink-subtle); text-align:center; padding:0 var(--s-6);
+}
+.mg-plot__empty[hidden]{ display:none; }
+.mg-plot__empty .mg-icon{ width:20px; height:20px; color:var(--ink-subtle); }
+
+/* --- Heap composition --- */
+.mg-heap-comp{ padding:var(--s-5); display:flex; flex-direction:column; gap:13px; }
+
+.mg-heap-bar{
+  display:flex; height:9px;
+  border-radius:var(--r-sm);            /* 5px — exact token match */
+  overflow:hidden; gap:var(--s-1);      /* 2px */
+}
+.mg-heap-bar__seg{ height:100%; flex:0 0 auto; min-width:0; }
+.mg-heap-bar__seg--inuse{ background:var(--series-2); }   /* violet */
+.mg-heap-bar__seg--alloc{ background:var(--series-1); }   /* accent */
+.mg-heap-bar__seg--idle { background:var(--surface-2); }
+
+.mg-heap-legend{
+  list-style:none; margin:0; padding:0;
+  display:flex; flex-direction:column; gap:9px;
+  font-family:var(--font-mono); font-size:var(--t-meta); font-weight:500;
+  line-height:var(--t-meta-lh); color:var(--ink);
+}
+.mg-heap-legend__row{ display:flex; align-items:center; gap:var(--s-3); min-width:0; }  /* 8px */
+.mg-heap-swatch{ display:block; flex:0 0 auto; width:7px; height:7px; border-radius:2px; }
+.mg-heap-swatch--inuse   { background:var(--series-2);  }
+.mg-heap-swatch--alloc   { background:var(--series-1);  }
+.mg-heap-swatch--idle    { background:var(--surface-2); }
+.mg-heap-swatch--released{ background:var(--hairline);  }
+/* CONTRAST FIX (not in the design): --surface-2 and --hairline swatches sit
+   at ~1.05:1 / 1.2:1 on a white card in light theme — effectively invisible.
+   A 1px inset ring restores the edge without repainting the segment. */
+.mg-heap-swatch--idle,
+.mg-heap-swatch--released{ box-shadow:inset 0 0 0 1px var(--hairline-strong); }
+.mg-heap-legend__label{ color:var(--ink-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mg-heap-legend__value{ margin-left:auto; color:var(--ink); white-space:nowrap;
+                        font-variant-numeric:tabular-nums; }
+
+
+/* ═══ 5. HOTTEST TRACED FUNCTIONS  (design 663-676) ════════════════════════ */
+
+.mg-hot{ overflow:hidden; }
+.mg-hot__head{
+  display:flex; align-items:center;
+  padding:14px 18px; border-bottom:1px solid var(--hairline);
+}
+.mg-hot__all{
+  margin-left:auto;
+  font-family:var(--font-mono); font-size:var(--t-meta); font-weight:500; line-height:1;
+  color:var(--accent-text); text-decoration:none; cursor:pointer;
 }
 
-.dot {
-    width: 10px;
-    height: 10px;
-    background: var(--accent);
-    border-radius: 70%;
-    animation: bounce 1.5s infinite;
+/* Design track list is `1fr 92px 92px 92px 76px` (name/calls/p95/mem/spark).
+   CALLS and TREND have no data (§4), so their tracks are removed and the
+   remaining three widened to 110px. Row padding and gap are unchanged, so
+   the 43px row height (11 + 21 + 11) is preserved. */
+.mg-hot__row{
+  display:grid;
+  grid-template-columns:1fr 110px 110px 110px;
+  align-items:center; gap:14px;
+  padding:11px 18px;
+  border-bottom:1px solid var(--hairline);
+  cursor:pointer; width:100%;
+  background:transparent; border-top:0; border-left:0; border-right:0;
+  text-align:left; color:inherit; font:inherit;
 }
+.mg-hot__row:last-child{ border-bottom:0; }   /* card is overflow:hidden + 12px radius */
+.mg-hot__row:hover{ background:var(--surface-2); }
 
-.dot:nth-child(1) {
-    animation-delay: 0s;
+.mg-hot__namecell{ display:flex; align-items:center; gap:9px; min-width:0; }
+.mg-fn-dot{ width:5px; height:5px; border-radius:50%; flex:none; }
+.mg-fn-name{
+  font:500 var(--t-code)/1 var(--font-mono); color:var(--ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+.mg-fn-pkg{ font:400 var(--t-micro)/1 var(--font-mono); color:var(--ink-subtle); flex:none; }
 
-.dot:nth-child(2) {
-    animation-delay: 0.3s;
+.mg-hot__exec{ font:500 var(--t-code)/1 var(--font-mono); color:var(--ink); }
+.mg-hot__mem { font:500 var(--t-code)/1 var(--font-mono); color:var(--ink-muted); }
+.mg-hot__last{ font:400 11px/1 var(--font-mono); color:var(--ink-subtle); }
+
+.mg-empty{ display:flex; flex-direction:column; gap:6px; padding:var(--s-6) 18px; }
+.mg-empty[hidden]{ display:none; }
+.mg-empty__title{ font-size:var(--t-body); font-weight:600; color:var(--ink); }
+.mg-empty__body { font-size:var(--t-meta); line-height:1.5; color:var(--ink-muted); }
+.mg-empty__body code{ font-family:var(--font-mono); color:var(--ink); }
+
+
+/* ═══ NARROW VIEWPORT — invented; the design is one fixed-width canvas ═════ */
+@media (max-width:900px){
 }
+@media (max-width:700px){ .mg-service-pill{ display:none; } }
+@media (max-width:640px){ .mg-health-card--system .mg-vrule{ display:none; } }
 
-.dot:nth-child(3) {
-    animation-delay: 0.6s;
-}
+/* --- Goroutines board ------------------------------------------------------
 
-@keyframes bounce {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-20px);
-    }
-}
-
-.health-indicator {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: 5px;
-    margin-left: 5px;
-    display: inline-block;
-}
-
-.health-indicator.healthy {
-    background-color: green;
-}
-
-.health-indicator.unhealthy {
-    background-color: red;
-}
-
-.chart-container {
-    height: 300px;
-    padding: 10px;
-}
-
-.card-header-toolbar {
-    padding: 1rem;
-}
-
-.dropdown {
-    display: flex;
-    align-items: center;
-}
-
-.dropdown-label {
-    margin-right: 0.5rem;
-    font-weight: bold;
-}
-
-.dropdown-select {
-    border: 1px solid var(--hairline-strong);
-    border-radius: var(--r-lg);
-    padding: 0.4rem;
-    background: var(--surface-1);
-    font-size: var(--t-body);
-    cursor: pointer;
-}
-
-.chart-container {
-    margin-left: 1rem;
-    flex-grow: 1;
-}
-
-.service-health{
-    margin-left: 30px;
-}
-
-/* --- Premium Styling System & Dark Mode --- */
-
-/* Global Premium Styling Overrides */
-.card {
-    border-radius: var(--r-lg) !important;
-    border: 1px solid var(--hairline) !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s ease !important;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
-}
-
-/* Theme Toggle Button Styling */
-#theme-toggle-btn {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    border-radius: 50% !important;
-    width: 38px !important;
-    height: 38px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: var(--surface-2) !important;
-    border: 1px solid var(--hairline-strong) !important;
-    color: var(--ink-muted) !important;
-}
-
-#theme-toggle-btn:hover {
-    transform: scale(1.1) rotate(15deg);
-    background: var(--surface-3) !important;
-    color: var(--accent) !important;
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent) !important;
-}
-
-/* Modern Progress Bars */
-.iq-progress-bar {
-    height: 7px !important;
-    border-radius: var(--r-md) !important;
-    background: var(--surface-2) !important;
-    overflow: hidden !important;
-    margin-top: 12px !important;
-    padding: 0 !important;
-}
-
-.iq-progress {
-    height: 100% !important;
-    border-radius: var(--r-md) !important;
-    display: block !important;
-    background-color: var(--accent) !important;
-}
-
-/* Icon Box Polish */
-.iq-icon-box-2 {
-    border-radius: var(--r-lg) !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 44px !important;
-    height: 44px !important;
-    padding: 8px !important;
-    margin-right: 12px !important;
-    transition: background-color 0.2s ease !important;
-}
-
-/* --- Component colours ----------------------------------------------------
-
-   Each rule states its colour once, from a token. The dark theme comes from the
-   token redefinitions above, not from a parallel set of overrides -- which is
-   why the ~170-line `body.dark-theme` block that used to live here is now two
-   structural exceptions.
-
-   These rules sit after the partial ones above deliberately: same specificity,
-   later wins, so this is the single place a component's colour is decided.
-
-   Note `background` rather than `background-color` on the shell surfaces: the
-   vendored template sets the shorthand (`.iq-sidebar { background: #ffffff }`
-   in both backend.css and backend-plugin.min.css), and matching its form keeps
-   the cascade unambiguous.
+   Summary row plus an expandable group table. Tones are semantic and separate
+   from the accent: the accent identifies MoniGo, --warn and --ok say whether
+   something needs attention, and the two must not be confused in an
+   observability UI.
    -------------------------------------------------------------------------- */
 
-body {
-    background: var(--canvas) !important;
-    color: var(--ink) !important;
-    font-family: var(--font-sans) !important;
+.mg-gor-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: var(--s-4);
 }
 
-.wrapper {
-    background: var(--canvas) !important;
+/*
+ * .mg-card is a bare bordered box -- no padding, display:block. The Overview's
+ * cards supply their own inner layout, so the padding is added here rather
+ * than on .mg-card, where it would double up on those nine.
+ *
+ * Without this the board's content sat flush against the card border, which is
+ * what made the state legend look like it was overflowing.
+ */
+.mg-gor-summary > .mg-card {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 16px;
 }
 
-/* Sidebar ---------------------------------------------------------------- */
-
-.iq-sidebar {
-    background: var(--surface-1) !important;
-    border-right: 1px solid var(--hairline) !important;
+.mg-gor-live-row {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    white-space: nowrap;
 }
 
-.iq-sidebar-logo {
-    background: var(--surface-1) !important;
-    border-bottom: 1px solid var(--hairline) !important;
-}
-
-.iq-sidebar-menu ul li a {
-    color: var(--ink-muted) !important;
-}
-
-.iq-sidebar-menu ul li a i,
-.iq-sidebar-menu ul li a svg {
-    color: var(--ink-muted) !important;
-    fill: var(--ink-muted) !important;
-    transition: color .2s, fill .2s !important;
-}
-
-.iq-sidebar-menu ul li.active > a,
-.iq-sidebar-menu ul li a:hover {
-    /* --accent, which is already the darkened variant in light theme
-       (#00758F, 5.33:1). The design's bright cyan is dark-theme only. */
-    color: var(--accent) !important;
-    background: var(--surface-3) !important;
-}
-
-.iq-sidebar-menu ul li.active > a i,
-.iq-sidebar-menu ul li.active > a svg,
-.iq-sidebar-menu ul li a:hover i,
-.iq-sidebar-menu ul li a:hover svg {
-    color: var(--accent) !important;
-    fill: var(--accent) !important;
-}
-
-/* Cards ------------------------------------------------------------------
-
-   Depth from a hairline and a barely-lifted surface. In dark mode --sh-1 is
-   `none`, and the hover lift is gone: a 20-tile grid that bounces as the
-   pointer crosses it is noise, not feedback. ---------------------------- */
-
-.card {
-    background: var(--surface-1) !important;
-    color: var(--ink) !important;
-    border: 1px solid var(--hairline) !important;
-    border-radius: var(--r-lg) !important;
-    box-shadow: var(--sh-1) !important;
-    transition: border-color .2s ease !important;
-}
-
-.card:hover {
-    border-color: var(--hairline-strong) !important;
-}
-
-.card-header,
-.card-footer {
-    background: var(--surface-2) !important;
-    border-bottom: 1px solid var(--hairline) !important;
-    color: var(--ink) !important;
-}
-
-/* Top bar ---------------------------------------------------------------- */
-
-.iq-top-navbar {
-    background: var(--surface-1) !important;
-    border-bottom: 1px solid var(--hairline) !important;
-}
-
-.navbar {
-    background: var(--surface-1) !important;
-}
-
-.navbar-list {
-    background: var(--surface-2) !important;
-    color: var(--ink) !important;
-}
-
-/* Text tones -------------------------------------------------------------- */
-
-.text-muted,
-.dropdown-label {
-    color: var(--ink-muted) !important;
-}
-
-/* Tables ------------------------------------------------------------------ */
-
-.table {
-    color: var(--ink) !important;
-}
-
-.table th {
-    border-color: var(--hairline) !important;
-    background: var(--surface-3) !important;
-    color: var(--ink-subtle) !important;
-    font-size: var(--t-micro) !important;
-    font-weight: var(--t-micro-w) !important;
-    letter-spacing: .08em !important;
-}
-
-.table td {
-    /* Quieter than the table's own edge, so rows read as rows. */
-    border-color: var(--hairline-soft) !important;
-    font-size: var(--t-body) !important;
-}
-
-.table tbody tr:hover {
-    background: var(--surface-3) !important;
-}
-
-/* Numeric columns must not jitter as values update on each poll. */
-.table td,
-.metric-value,
-.stat-value {
+.mg-gor-count {
+    font: var(--t-stat-w) var(--t-stat) / var(--t-stat-lh) var(--font-mono);
+    letter-spacing: -.03em;
     font-variant-numeric: tabular-nums;
 }
 
-/* Modals ------------------------------------------------------------------ */
-
-.modal-content {
-    background: var(--surface-1) !important;
-    color: var(--ink) !important;
-    border: 1px solid var(--hairline) !important;
-}
-
-.modal-header {
-    border-bottom: 1px solid var(--hairline) !important;
-}
-
-.modal-footer {
-    border-top: 1px solid var(--hairline) !important;
-}
-
-/* Controls ----------------------------------------------------------------
-
-   Boundaries use --hairline-strong, which clears the 3:1 non-text floor in
-   both themes. --hairline is for dividers only. ------------------------- */
-
-.dropdown-select {
-    background: var(--surface-2) !important;
-    color: var(--ink) !important;
-    border: 1px solid var(--hairline-strong) !important;
-}
-
-#theme-toggle-btn {
-    background: var(--surface-2) !important;
-    border-color: var(--hairline-strong) !important;
-    color: var(--ink) !important;
-}
-
-#theme-toggle-btn:hover {
-    background: var(--surface-3) !important;
-    color: var(--accent) !important;
-}
-
-.navbar-list li.nav-item.nav-icon.dropdown a {
-    background: var(--surface-2) !important;
-    border-color: var(--hairline-strong) !important;
-    color: var(--ink) !important;
-}
-
-.navbar-list li.nav-item.nav-icon.dropdown a:hover {
-    background: var(--surface-3) !important;
-    color: var(--accent) !important;
-}
-
-.add-btn {
-    border-color: var(--hairline-strong) !important;
-    color: var(--ink-muted) !important;
-}
-
-/* Focus. The vendored `.btn:focus { outline: none; box-shadow: none }` strips
-   every focus ring with no replacement, so tabbing the dashboard today moves
-   nothing visually. ----------------------------------------------------- */
-
-.btn:focus-visible,
-.dropdown-select:focus-visible,
-a:focus-visible,
-button:focus-visible,
-[role="button"]:focus-visible {
-    outline: 2px solid var(--focus) !important;
-    outline-offset: 2px !important;
-    box-shadow: 0 0 0 4px var(--accent-tint) !important;
-}
-
-/* Surfaces inside cards --------------------------------------------------- */
-
-.iq-progress-bar {
-    background: var(--surface-3) !important;
-}
-
-.goroutine-card {
-    background: var(--surface-2) !important;
-    border-color: var(--hairline) !important;
-}
-
-/* Code and stack traces ---------------------------------------------------
-
-   Stack traces and pprof output are the primary content of two of the four
-   pages, so they are set for reading: full-strength ink on a recessed surface,
-   fixed size, never wrapped. The previous rule asked for 'Fira Code', which is
-   not shipped and never resolved. -------------------------------------- */
-
-pre {
-    background: var(--inset) !important;
-    color: var(--ink) !important;
-    border: 1px solid var(--hairline) !important;
-    border-radius: var(--r-md) !important;
-    padding: var(--s-5) !important;
-    font-family: var(--font-mono) !important;
-    font-size: var(--t-code) !important;
-    line-height: var(--t-code-lh) !important;
-}
-
-/* Placeholder text -------------------------------------------------------- */
-
-.skeleton-text {
-    color: var(--ink-subtle) !important;
-}
-
-/* Brand buttons ---------------------------------------------------------- */
-
-.card-body .btn-primary {
-    border-color: var(--accent) !important;
-    color: var(--accent-text) !important;
-}
-
-.card-body .btn-primary:hover {
-    background: var(--accent) !important;
-    color: var(--accent-on-fill) !important;
-}
-
-.iq-icon-box-2 {
-    background: var(--accent-tint) !important;
-    border: 1px solid var(--hairline) !important;
-}
-
-.card:hover .iq-icon-box-2 {
-    background: var(--accent-tint) !important;
-}
-
-/* --- Type scale and density ------------------------------------------------
-
-   The design runs 10-16px with no display tier, which is denser than the
-   vendored template's defaults and correct for a screen an operator scans for
-   what is wrong. These rules bring the actual elements onto the token scale;
-   the tokens themselves were added earlier but nothing consumed them.
-
-   The metric card pattern is `<p class="mb-2">Label</p><h4>value</h4>` inside
-   `.card-body`, rendered by updateElement() in index.js. The design's version
-   of that is an uppercase micro-label over one large number, which is what the
-   two rules below produce.
-   -------------------------------------------------------------------------- */
-
-body {
-    font-size: var(--t-body);
-    line-height: var(--t-body-lh);
-}
-
-/* Metric tile label: uppercase eyebrow, not sentence case. */
-.card-body .card-total-sale p.mb-2,
-.card-body > div > div > p.mb-2 {
-    font-size: var(--t-micro) !important;
-    font-weight: var(--t-micro-w) !important;
-    line-height: var(--t-micro-lh) !important;
-    letter-spacing: .09em !important;
-    text-transform: uppercase !important;
-    color: var(--ink-subtle) !important;
-    margin-bottom: var(--s-2) !important;
-}
-
-/* Metric tile value: the one big number per tile. */
-.card-body .card-total-sale h4,
-.card-body > div > div > h4 {
-    font-size: var(--t-stat) !important;
-    font-weight: var(--t-stat-w) !important;
-    line-height: var(--t-stat-lh) !important;
-    letter-spacing: -.01em !important;
-    color: var(--ink) !important;
-    font-variant-numeric: tabular-nums;
-    margin-bottom: 0 !important;
-}
-
-/* A skeleton value is a placeholder, not a statistic: keep it at the label's
-   weight so a connecting dashboard does not look like it is reporting. */
-.card-body h4.skeleton-text {
-    font-size: var(--t-head) !important;
-    font-weight: var(--t-head-w) !important;
-    letter-spacing: 0 !important;
-}
-
-.card-title,
-.card-header h4,
-.card-header h5 {
-    font-size: var(--t-head) !important;
-    font-weight: var(--t-head-w) !important;
-    line-height: var(--t-head-lh) !important;
-    letter-spacing: -.005em !important;
-    color: var(--ink) !important;
-}
-
-/* Card chrome. 16px padding on a metric tile, never 24px+: the tile exists to
-   show a number, and the number should dominate it. */
-.card-body {
-    padding: var(--s-5) !important;
-}
-
-.card-header {
-    padding: var(--s-4) var(--s-5) !important;
-    min-height: 0 !important;
-}
-
-/* Tables. 34px rows: 6px cell padding either side of a 20px line box plus the
-   rule. Sticky header so column meaning survives a long scroll. */
-.table th {
-    padding: var(--s-2) var(--s-4) !important;
-    position: sticky;
-    top: 0;
-    z-index: 2;
-}
-
-.table td {
-    padding: var(--s-2) var(--s-4) !important;
-    line-height: var(--t-body-lh) !important;
-}
-
-/* Radius. The design uses 12 distinct values; this is the three-step scale.
-   Everything that was 20px was a pill on a rectangular thing. */
-.card,
-.modal-content {
-    border-radius: var(--r-lg) !important;
-}
-
-.btn,
-.btn-primary,
-.dropdown-select,
-.iq-icon-box-2,
-pre,
-#download-image-btn,
-#download-stack-view,
-#downloadBtn {
-    border-radius: var(--r-md) !important;
-}
-
-.badge,
-.info-icon,
-.leak-badge {
-    border-radius: var(--r-sm) !important;
-}
-
-/* --- Dark theme: structural exceptions only -------------------------------
-
-   Everything above is theme-agnostic. What remains changes a *property*
-   rather than a value, which a token cannot express.
-   -------------------------------------------------------------------------- */
-
-body.dark-theme .gauge,
-.gauge {
-    /* Neutralises the vendored CSS-drawn gauge that the SVG ring replaced.
-       Dead weight, to be removed with the redundant health encodings. */
-    background: none !important;
-    display: block !important;
-    margin: 15px auto !important;
-    width: auto !important;
-    height: auto !important;
-    aspect-ratio: auto !important;
-}
-
-body.dark-theme .gauge::after,
-.gauge::after {
-    display: none !important;
-}
-
-/* Typography polish */
-body {
-    font-family: var(--font-sans) !important;
-}
-
-/* Brand Buttons */
-.btn-primary, #download-image-btn, #download-stack-view, #downloadBtn, .sidebar-bottom-btn {
-    background: var(--accent) !important;
-    border-color: var(--accent) !important;
-    color: var(--accent-on-fill) !important;
-    border-radius: var(--r-md) !important;
-    font-weight: 600 !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--accent) 15%, transparent), 0 2px 4px -1px color-mix(in srgb, var(--accent) 10%, transparent) !important;
-}
-
-.btn-primary:hover, #download-image-btn:hover, #download-stack-view:hover, #downloadBtn:hover, .sidebar-bottom-btn:hover {
-    background: var(--accent-press) !important;
-    border-color: var(--accent-press) !important;
-    color: var(--accent-on-fill) !important;
-    box-shadow: 0 6px 12px -2px color-mix(in srgb, var(--accent) 30%, transparent), 0 4px 6px -2px color-mix(in srgb, var(--accent) 20%, transparent) !important;
-}
-
-.sidebar-bottom-btn a {
-    color: var(--accent-on-fill) !important;
-    text-decoration: none !important;
-}
-
-/* GitHub Icon Wrapper Circular Style */
-.navbar-list li.nav-item.nav-icon.dropdown a {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 38px !important;
-    height: 38px !important;
-    border-radius: 50% !important;
-    background: var(--surface-2) !important;
-    border: 1px solid var(--hairline-strong) !important;
-    color: var(--ink-muted) !important;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-.navbar-list li.nav-item.nav-icon.dropdown a:hover {
-    transform: scale(1.1);
-    background: var(--surface-3) !important;
-    color: var(--accent) !important;
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent) !important;
-}
-
-.navbar-list li.nav-item.nav-icon.dropdown a i.fa-github {
-    font-size: var(--t-head) !important;
-    margin: 0 !important;
-}
-
-/* Countdown Pill Style */
-.add-btn {
-    border-radius: var(--r-lg) !important;
-    padding: 6px 16px !important;
-    font-size: var(--t-body) !important;
-    font-weight: 500 !important;
-    background-color: transparent !important;
-    border-color: var(--hairline-strong) !important;
-    color: var(--ink-muted) !important;
-    transition: all 0.2s ease !important;
-}
-
-/* Skeleton Text Animation */
-.skeleton-text {
-    font-size: var(--t-head) !important;
-    font-weight: 500 !important;
-    color: var(--ink-subtle) !important;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 0.8; }
-    50% { opacity: 0.35; }
-}
-
-.animate-pulse {
-    animation: pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Secondary Outlined Buttons for Detailed View */
-.card-body .btn-primary {
-    background: transparent !important;
-    border: 1px solid var(--accent) !important;
-    color: var(--accent-text) !important;
-    font-weight: 500 !important;
-    font-size: var(--t-body) !important;
-    padding: 6px 14px !important;
-    box-shadow: none !important;
-    transition: all 0.2s ease-in-out !important;
-}
-
-.card-body .btn-primary:hover {
-    background: var(--accent) !important;
-    color: var(--accent-on-fill) !important;
-}
-
-/* Sidebar Bottom Card Custom Styling */
-.sidebar-bottom .card.bg-success-light {
-    background-color: rgba(255, 255, 255, 0.04) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-radius: var(--r-lg) !important;
-    margin: 15px !important;
-}
-
-.sidebar-bottom .card.bg-success-light h6 {
-    color: var(--ink-subtle) !important;
-    font-size: var(--t-meta) !important;
-    line-height: 1.6 !important;
-    font-weight: 400 !important;
-}
-
-.sidebar-bottom .card.bg-success-light .sidebar-bottom-btn {
-    background-color: var(--accent) !important;
-    border: none !important;
-    width: 100% !important;
-    border-radius: var(--r-md) !important;
-    padding: 8px 12px !important;
-    transition: all 0.2s ease-in-out !important;
-}
-
-.sidebar-bottom .card.bg-success-light .sidebar-bottom-btn a {
-    color: var(--accent-on-fill) !important;
-    font-weight: 600 !important;
-    font-size: var(--t-body) !important;
-    text-decoration: none !important;
-}
-
-.sidebar-bottom .card.bg-success-light .sidebar-bottom-btn:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent) !important;
-}
-
-/* Remove all static decorative progress bars from metric cards */
-.card-body .iq-progress-bar {
-    display: none !important;
-}
-
-/* Harmonize icon box colors with brand orange */
-.iq-icon-box-2 {
-    background-color: color-mix(in srgb, var(--accent) 6%, transparent) !important;
-    border-radius: var(--r-lg) !important;
-    width: 44px !important;
-    height: 44px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    transition: all 0.2s ease !important;
-}
-
-.iq-icon-box-2 img {
-    max-width: 22px !important;
-    max-height: 22px !important;
-    filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--accent) 15%, transparent));
-}
-
-.card:hover .iq-icon-box-2 {
-    transform: scale(1.05);
-    background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
-}
-
-/* --- Goroutine Leak Detection Panel --- */
-#goroutine-leak-panel {
-    margin-bottom: 20px;
-}
-
-.leak-status {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 14px 18px;
-    border-radius: var(--r-lg);
-    font-size: var(--t-body);
-    line-height: 1.5;
-    border: 1px solid transparent;
-}
-
-.leak-status i {
-    font-size: var(--t-head);
-    flex-shrink: 0;
-}
-
-.leak-status-ok {
-    background: var(--ok-tint);
-    border-color: var(--ok-fill);
-    color: var(--ok-text);
-}
-
-.leak-status-warn {
-    background: var(--warn-tint);
-    border-color: var(--warn-fill);
-    color: var(--warn-text);
-}
-
-.leak-meta {
+.mg-gor-limit,
+.mg-gor-groups {
     font-size: var(--t-meta);
-    opacity: 0.75;
+    color: var(--ink-subtle);
+}
+
+.mg-gor-groups {
     margin-left: auto;
+    font-family: var(--font-mono);
 }
 
-.leak-groups {
-    margin-top: 12px;
+/* Semantic tones. Applied to text, swatches and bar segments alike, so one
+   class carries the meaning wherever it lands. */
+.mg-tone-ok    { color: var(--ok-text); }
+.mg-tone-warn  { color: var(--warn-text); }
+.mg-tone-info  { color: var(--accent); }
+.mg-tone-dim   { color: var(--ink-subtle); }
+
+.mg-gor-summary > .mg-card > .mg-gor-statebar,
+.mg-gor-summary > .mg-card > .mg-gor-statelist,
+.mg-gor-summary > .mg-card > .mg-gor-blocked {
+    margin-top: 7px;
 }
 
-.leak-group {
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-lg);
-    margin-bottom: 10px;
+.mg-gor-statebar {
+    display: flex;
+    height: 7px;
+    gap: 2px;
+    border-radius: var(--r-sm);
     overflow: hidden;
 }
 
-.leak-group-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 10px 14px;
-    background: var(--surface-3);
-    color: var(--ink);
-    font-size: var(--t-body);
+.mg-gor-seg {
+    display: block;
+    background: currentColor;
+    min-width: 2px;
 }
 
-.leak-badge {
-    background: var(--warn-fill);
-    color: var(--accent-on-fill);
-    border-radius: var(--r-lg);
-    padding: 2px 10px;
-    font-size: var(--t-meta);
-    font-weight: 700;
-    flex-shrink: 0;
-}
-
-.leak-group-head code {
-    background: transparent;
-    color: inherit;
-    font-weight: 600;
-    padding: 0;
-}
-
-.leak-reasons {
-    font-size: var(--t-meta);
-    opacity: 0.8;
-    margin-left: auto;
-}
-
-.leak-stack {
+.mg-gor-statelist,
+.mg-gor-blocked {
+    list-style: none;
     margin: 0;
-    padding: 12px 14px;
-    font-size: var(--t-meta);
-    line-height: 1.5;
-    max-height: 220px;
-    overflow: auto;
-    background: transparent;
-    border: 0;
-    white-space: pre;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font: 500 var(--t-meta) / 1.4 var(--font-mono);
 }
 
-/* --- Inline icon sprite ---------------------------------------------------
-   Replaces Font Awesome 4.7.0, which was fetched from cdnjs and so rendered
-   nothing on an airgapped host. Stroke icons inherit currentColor, so they
-   follow the theme with no dark-mode overrides of their own. */
-.icon {
-    width: 1em;
-    height: 1em;
-    display: inline-block;
-    vertical-align: -0.125em;
-    flex-shrink: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.icon-2x {
-    width: 2em;
-    height: 2em;
-}
-
-/* The GitHub mark is a filled path; it sets its own fill/stroke on the symbol,
-   but this keeps it correct if the symbol is ever restyled. */
-.icon use[href="#i-github"] {
-    fill: currentColor;
-    stroke: none;
-}
-
-.icon-spin {
-    animation: monigo-icon-spin 1.6s linear infinite;
-}
-
-@keyframes monigo-icon-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .icon-spin {
-        animation: none;
-    }
-}
-
-/* The sidebar and navbar menu buttons were <i> elements backed by icon fonts
-   that were never loaded, so they had zero size and could not be clicked --
-   navigation was unreachable below 1300px in every network condition. */
-.wrapper-menu.icon,
-.navbar-toggler .icon {
-    width: 22px;
-    height: 22px;
-    cursor: pointer;
-}
-
-/* --- Shell: sidebar identity, grouped navigation, storage footer ------------
-
-   The design puts three things in the sidebar that the template did not have:
-   what service you are looking at, section labels above the navigation, and
-   the retention footprint. All three are chrome -- true of the whole
-   instrument rather than of any one page -- so they live here rather than on
-   the Overview.
-
-   The template's own hooks are untouched: .iq-sidebar, .iq-sidebar-logo,
-   .data-scrollbar, #iq-sidebar-toggle and .wrapper-menu all still work, so the
-   mobile toggle and scroll behaviour survive.
-   -------------------------------------------------------------------------- */
-
-.iq-sidebar {
-    width: 226px !important;
-}
-
-/* Service identity ------------------------------------------------------- */
-
-.mg-identity {
+.mg-gor-statelist li,
+.mg-gor-blocked li {
     display: flex;
     align-items: center;
     gap: var(--s-3);
-    padding: var(--s-4) var(--s-5);
+}
+
+.mg-gor-swatch {
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    background: currentColor;
+    display: block;
+    flex: none;
+}
+
+.mg-gor-statename,
+.mg-gor-blockedname {
+    color: var(--ink-muted);
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-gor-statecount,
+.mg-gor-blockedtime {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.mg-gor-threshold {
+    margin-top: auto;
+    font: 400 var(--t-micro) var(--font-mono);
+    color: var(--ink-subtle);
+}
+
+.mg-gor-emptyline {
+    color: var(--ink-subtle);
+    font: 400 var(--t-meta) / 1.5 var(--font-sans);
+    text-wrap: pretty;
+}
+
+/* Verdict card. Neutral until there is something to say -- a permanently
+   amber panel stops meaning anything. */
+.mg-gor-verdict {
+    gap: 9px;
+}
+
+.mg-gor-verdict.is-suspect {
+    background: var(--warn-tint);
+    border-color: color-mix(in srgb, var(--warn-fill) 36%, transparent);
+}
+
+.mg-gor-verdict-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--ok-text);
+}
+
+.mg-gor-verdict.is-suspect .mg-gor-verdict-head {
+    color: var(--warn-text);
+}
+
+.mg-gor-verdict-title {
+    font-weight: 600;
+    font-size: 12.5px;
+}
+
+.mg-gor-verdict-msg {
+    font-size: var(--t-meta);
+    line-height: 1.55;
+    color: var(--ink-muted);
+    text-wrap: pretty;
+}
+
+.mg-gor-snapshot {
+    margin-top: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 11px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--ink-muted);
+    font: 500 var(--t-meta) var(--font-mono);
+    cursor: pointer;
+}
+
+.mg-gor-verdict.is-suspect .mg-gor-snapshot {
+    border-color: color-mix(in srgb, var(--warn-fill) 45%, transparent);
+    color: var(--warn-text);
+}
+
+.mg-gor-snapshot:hover {
+    background: var(--surface-2);
+}
+
+.mg-gor-snapshot .mg-icon {
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+
+/* Group table ------------------------------------------------------------- */
+
+.mg-gor-tablewrap {
+    padding: 0;
+    overflow: auto;
+}
+
+.mg-gor-thead,
+.mg-gor-row {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr) 130px 70px 90px 90px;
+    gap: var(--s-4);
+    align-items: center;
+}
+
+.mg-gor-table {
+    min-width: 760px;
+}
+
+.mg-gor-thead {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface-2);
+    font: 500 9.5px var(--font-mono);
+    letter-spacing: .1em;
+    /*
+     * --ink-subtle is tuned against --pan and measures 4.44:1 on the lighter
+     * --surface-2 this header sits on -- under the floor for 9.5px text.
+     * Same trap as the footer; --ink-muted clears it on both grounds.
+     */
+    color: var(--ink-muted);
+}
+
+.mg-gor-group {
     border-bottom: 1px solid var(--hairline);
 }
 
-.mg-identity-avatar {
-    width: 26px;
-    height: 26px;
-    flex: none;
-    display: grid;
-    place-items: center;
-    border-radius: var(--r-sm);
-    background: var(--accent-tint);
-    color: var(--accent);
-    font-family: var(--font-mono);
-    font-size: var(--t-micro);
-    font-weight: 600;
-    text-transform: lowercase;
-}
-
-.mg-identity-text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    line-height: 1.25;
-}
-
-.mg-identity-name {
-    font-size: var(--t-body);
-    font-weight: 600;
+.mg-gor-row {
+    width: 100%;
+    padding: 11px 18px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
     color: var(--ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font: inherit;
 }
 
-.mg-identity-meta {
-    font-family: var(--font-mono);
-    font-size: var(--t-micro);
+.mg-gor-row:hover {
+    background: var(--surface-2);
+}
+
+.mg-gor-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.mg-gor-row.is-suspect {
+    background: color-mix(in srgb, var(--warn-fill) 7%, transparent);
+}
+
+.mg-gor-sig {
+    font: 500 var(--t-meta) var(--font-mono);
     color: var(--ink-subtle);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-/* Connected until proven otherwise; common.js flips it on a failed poll. */
-.mg-identity-dot {
-    width: 6px;
-    height: 6px;
+.mg-gor-frame {
+    font: 500 var(--t-code) var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-gor-state {
+    font: 500 var(--t-meta) var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-gor-n,
+.mg-gor-blockedcell,
+.mg-gor-growth {
+    font: 500 var(--t-code) var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.mg-gor-n {
+    font-weight: 600;
+}
+
+.mg-gor-stack {
+    margin: 0;
+    padding: 14px 18px 16px 34px;
+    background: var(--inset);
+    border-top: 1px solid var(--hairline);
+    font: 400 var(--t-meta) / 1.7 var(--font-mono);
+    color: var(--ink-muted);
+    overflow-x: auto;
+}
+
+.mg-gor-truncated {
+    margin: 0;
+    padding: 11px 18px;
+    font: 400 var(--t-meta) var(--font-sans);
+    color: var(--ink-subtle);
+}
+
+.mg-gor-live-detail {
+    font: 500 var(--t-meta) var(--font-mono);
+}
+
+.mg-gor-morestates {
+    color: var(--ink-subtle);
+    font: 400 var(--t-micro) var(--font-mono);
+}
+
+/* --- Functions board -------------------------------------------------------
+
+   Filter bar plus a table of traced calls. Four data columns, not the
+   design's seven: see functions-view.js for why the other three are absent.
+   -------------------------------------------------------------------------- */
+
+.mg-fn-toolbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s-4);
+    flex-wrap: wrap;
+    padding: 12px 16px;
+}
+
+.mg-fn-search {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    flex: 1 1 260px;
+    min-width: 0;
+    padding: 7px 11px;
+    background: var(--inset);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-md);
+}
+
+.mg-fn-search:focus-within {
+    border-color: var(--accent);
+}
+
+.mg-fn-search .mg-icon {
+    width: 14px;
+    height: 14px;
     flex: none;
-    margin-left: auto;
-    border-radius: 50%;
-    background: var(--ok-fill);
-}
-
-.mg-identity-dot.is-stale {
-    background: var(--warn-fill);
-}
-
-.mg-identity-dot.is-down {
-    background: var(--crit-fill);
-}
-
-/* Grouped navigation ----------------------------------------------------- */
-
-.mg-navlabel {
-    padding: var(--s-5) var(--s-5) var(--s-2);
-    font-family: var(--font-mono);
-    font-size: var(--t-micro);
-    font-weight: var(--t-micro-w);
-    letter-spacing: .12em;
     color: var(--ink-subtle);
-    list-style: none;
 }
 
-.mg-badge {
-    margin-left: auto;
-    padding: 1px var(--s-2);
-    border-radius: var(--r-sm);
-    background: var(--surface-3);
+.mg-fn-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 400 var(--t-body) var(--font-sans);
+}
+
+.mg-fn-input:focus {
+    outline: none;
+}
+
+.mg-fn-input::placeholder {
     color: var(--ink-subtle);
-    font-family: var(--font-mono);
-    font-size: var(--t-micro);
-    line-height: 16px;
+}
+
+.mg-fn-count {
+    font: 500 var(--t-meta) var(--font-mono);
+    color: var(--ink-muted);
     font-variant-numeric: tabular-nums;
 }
 
-.iq-sidebar-menu ul li.active > a .mg-badge {
-    background: var(--accent-tint);
-    color: var(--accent);
-}
-
-/* The nav link is a flex row so the badge can sit hard right. The icons need
-   an explicit basis: without it a flex row collapses an <svg> with no intrinsic
-   width to 1px, which is what happened to the goroutines icon. */
-.iq-sidebar-menu ul li a {
-    display: flex !important;
+.mg-fn-sort {
+    display: flex;
     align-items: center;
-    gap: var(--s-2);
+    gap: var(--s-3);
 }
 
-.iq-sidebar-menu ul li a > svg {
+.mg-fn-select {
+    padding: 6px 9px;
+    background: var(--inset);
+    color: var(--ink);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-sm);
+    font: 500 var(--t-meta) var(--font-mono);
+}
+
+.mg-fn-export {
+    padding: 7px 13px;
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-md);
+    font: 500 var(--t-meta) var(--font-mono);
+    cursor: pointer;
+}
+
+.mg-fn-export:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+}
+
+/* Table -------------------------------------------------------------------- */
+
+.mg-fn-tablewrap {
+    padding: 0;
+    overflow: auto;
+}
+
+.mg-fn-table {
+    min-width: 720px;
+}
+
+.mg-fn-thead,
+.mg-fn-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px 110px 90px 110px;
+    gap: var(--s-4);
+    align-items: center;
+}
+
+.mg-fn-thead {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface-2);
+    font: 500 9.5px var(--font-mono);
+    letter-spacing: .1em;
+    /* Same reason as .mg-gor-thead: --ink-subtle is short of the floor on
+       --surface-2. */
+    color: var(--ink-muted);
+}
+
+.mg-fn-group {
+    border-bottom: 1px solid var(--hairline);
+}
+
+.mg-fn-row {
+    width: 100%;
+    padding: 11px 18px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    color: var(--ink);
+    font: inherit;
+}
+
+.mg-fn-row:hover {
+    background: var(--surface-2);
+}
+
+.mg-fn-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.mg-fn-namecell {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-3);
+    min-width: 0;
+}
+
+.mg-fn-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    background: var(--accent);
     flex: none;
-    width: 20px;
-    height: 20px;
+    align-self: center;
 }
 
-/* The label takes the slack so the badge lands hard right. Growing the label
-   is cleaner than `margin-left: auto` on the badge, which the vendored rules
-   override. */
-.iq-sidebar-menu ul li a > .ml-4 {
-    flex: 1 1 auto;
-    margin-left: var(--s-2) !important;
+.mg-fn-name {
+    font: 500 var(--t-code) var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* A badge with nothing in it is noise. */
-.mg-badge:empty {
+.mg-fn-pkg {
+    font: 400 var(--t-micro) var(--font-mono);
+    color: var(--ink-subtle);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-fn-exec,
+.mg-fn-mem,
+.mg-fn-gor,
+.mg-fn-last {
+    font: 500 var(--t-code) var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.mg-fn-exec {
+    font-weight: 600;
+}
+
+.mg-fn-last {
+    color: var(--ink-muted);
+}
+
+/* Expanded detail ---------------------------------------------------------- */
+
+/*
+ * display:flex beats the hidden attribute, whose whole effect is
+ * `display: none` from the UA stylesheet at the lowest possible precedence.
+ * Without this guard the panel stayed on screen after being closed, and an
+ * unopened row still reserved 31px for an empty box -- which is the gap that
+ * appeared under every row in the table.
+ */
+.mg-fn-detail[hidden] {
     display: none;
 }
 
-/* Storage footer --------------------------------------------------------- */
-
-.mg-storage {
-    margin: var(--s-5) var(--s-5) var(--s-3);
-    padding-top: var(--s-4);
+.mg-fn-detail {
+    padding: 14px 18px 16px 34px;
+    background: var(--inset);
     border-top: 1px solid var(--hairline);
-}
-
-.mg-storage-head {
     display: flex;
-    justify-content: space-between;
-    font-family: var(--font-mono);
-    font-size: var(--t-micro);
-    letter-spacing: .12em;
-    color: var(--ink-subtle);
-    margin-bottom: var(--s-2);
+    flex-direction: column;
+    gap: var(--s-4);
 }
 
-.mg-storage-value {
-    font-family: var(--font-mono);
-    font-size: var(--t-meta);
-    color: var(--ink-muted);
+.mg-fn-detailgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--s-4);
+}
+
+.mg-fn-detailcell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+}
+
+.mg-fn-detailvalue {
+    font: 600 var(--t-head) var(--font-mono);
     font-variant-numeric: tabular-nums;
+}
+
+.mg-fn-detailnote {
+    font: 400 var(--t-micro) var(--font-mono);
+    color: var(--ink-subtle);
+}
+
+.mg-fn-profile {
+    align-self: flex-start;
+    font: 500 var(--t-meta) var(--font-mono);
+    color: var(--accent-text);
+}
+
+.mg-fn-empty {
+    margin: 0;
+    padding: 20px 18px;
+    font: 400 var(--t-body) var(--font-sans);
+    color: var(--ink-subtle);
+    text-wrap: pretty;
+}
+
+.mg-fn-noprofile {
+    font: 400 var(--t-meta) var(--font-sans);
+    color: var(--ink-subtle);
+}
+
+/* --- Reports board ---------------------------------------------------------
+
+   Window and topic across the top, one card per field below. RESOLUTION and
+   Generate PDF from the design are absent -- see reports-view.js.
+   -------------------------------------------------------------------------- */
+
+.mg-rep-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--s-5);
+    flex-wrap: wrap;
+    padding: 14px 16px;
+}
+
+.mg-rep-fact {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    min-width: 0;
+}
+
+.mg-rep-value {
+    font: 500 var(--t-code) var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.mg-rep-sep {
+    width: 1px;
+    height: 34px;
+    background: var(--hairline);
+    flex: none;
+}
+
+.mg-rep-actions {
+    margin-left: auto;
+    display: flex;
+    gap: var(--s-3);
+}
+
+.mg-rep-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--s-4);
+}
+
+.mg-rep-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+}
+
+.mg-rep-title {
+    font-weight: 600;
+    font-size: var(--t-body);
+}
+
+.mg-rep-spark {
+    width: 100%;
+    height: 90px;
+    display: block;
+}
+
+.mg-rep-area {
+    fill: color-mix(in srgb, var(--accent) 15%, transparent);
+    stroke: none;
+}
+
+.mg-rep-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.6;
+    vector-effect: non-scaling-stroke;
+}
+
+/* One sample has no shape; the card shows the value instead of a fake line. */
+.mg-rep-spark.is-flat {
+    background: repeating-linear-gradient(
+        -45deg,
+        var(--inset) 0 6px,
+        transparent 6px 12px);
+    border-radius: var(--r-sm);
+}
+
+.mg-rep-stats {
+    font: 400 var(--t-meta) var(--font-mono);
+    color: var(--ink-subtle);
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Runtime load plot: inline SVG ------------------------------------------
+
+   Replaces ECharts. The three series are normalised independently, so the
+   plot shows shape rather than magnitude and carries no y axis; the crosshair
+   readout supplies the numbers the axis would have.
+   -------------------------------------------------------------------------- */
+
+.mg-plot__svg {
+    width: 100%;
+    /* Fills .mg-plot__canvas rather than fixing its own height: the viewBox is
+       preserveAspectRatio="none", so it stretches to whatever the card gives
+       it and the plot keeps the full depth the design draws. */
+    height: 100%;
+    display: block;
+}
+
+.mg-plot__canvas {
+    position: relative;
+}
+
+/* Sits over the plot, so it must not eat the pointer events the crosshair
+   listens for on the container. */
+.mg-plot__readout {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    gap: var(--s-4);
+    align-items: baseline;
+    padding: 4px 8px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    font: 500 var(--t-meta) var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+
+.mg-plot__readout.is-visible {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mg-plot__readout {
+        transition: none;
+    }
+}
+
+.mg-plot__at {
+    color: var(--ink-subtle);
+}
+
+/* The waiting message sits over the grid, so it needs a line-box of its own
+   rather than the centred column it used when the plot was blank. */
+.mg-plot__empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-2);
+    padding: 0 var(--s-6);
+    text-align: center;
+    pointer-events: none;
+}
+
+.mg-plot__empty[hidden] {
+    display: none;
+}
+
+.mg-plot__empty > span {
+    max-width: 42ch;
+    text-wrap: pretty;
+}
+
+#mg-runtime-load-failed {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    color: var(--crit-text);
+}
+
+#mg-runtime-load-failed[hidden] {
+    display: none;
 }

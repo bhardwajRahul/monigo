@@ -7,10 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-29
+
+The dashboard rebuilt on the new design, and a set of measurements that
+were reporting things they had not measured. The security fix that landed
+alongside this work is in 1.4.1, released separately.
+
+### Changed
+- **The dashboard was rebuilt on the new design.** A 226px rail carrying the
+  service identity, navigation and storage footprint; a top bar with the page
+  title, window control, live indicator and theme toggle; and the failure states
+  the old dashboard had no answer for -- an `as of` stamp, a staleness banner
+  naming the last good reading, and dimmed content so stale numbers cannot be
+  read as current
+- **The embedded payload went from 7.9 MB to 352 KB.** Every byte of it shipped
+  inside every binary importing this library and was downloaded by every
+  `go get`, whether or not the dashboard was ever opened. The vendored Bootstrap
+  template (4.3 MB) was held up by 26 class names and one custom scrollbar;
+  ECharts (1.0 MB) drew a single chart, now inline SVG; 1.8 MB of PNG tile icons
+  and a loading GIF were replaced by an icon sprite
+- The default theme is light, and the theme mechanism moved from a class to
+  `body[data-theme]`. Stored preferences carry over unchanged
+- `GetCPUPrecent` and `GetCPULoad` no longer block. Both called
+  `cpu.Percent(time.Second, ...)`, which *sleeps* for a second to take two
+  samples, and `GET /metrics` reaches both -- so every dashboard poll spent two
+  seconds in the handler before it could answer. **2.05s to 0.01s.** The reading
+  is now taken once, non-blocking, and shared
+
 ### Added
+- `common.LibraryVersion()` reports the version compiled into the binary, read
+  from build info rather than declared as a constant. The dashboard shows it in
+  the rail. A constant is a promise nobody keeps: the footer claimed `v1.0.0`
+  for four releases after it stopped being true
+- `GoroutineLeakReport.Groups` and `GroupsTotal` carry every distinct call
+  stack, not only the offending ones. A breakdown by state cannot be computed
+  from the offenders alone
+- Guardrail tests for the invariants the front end has no other way to check:
+  undefined CSS custom properties (including in HTML `style` attributes),
+  self-referential tokens, tokens defined twice, `hidden` defeated by a
+  `display` rule, dead local page links, hardcoded versions, self-asserted
+  credentials, and the embedded payload budget
+
 - **The sidebar gains the design's shell**: a service identity block (name, PID, Go version and a connection dot), a `MONITOR` section label above the navigation, live counts on the Function Metrics and Go Routines items, and a storage footer showing the backend, retention window and on-disk footprint. All of it is chrome -- true of the instrument rather than of any one page -- so every page shows it and no page fetches it twice
 - `/service-info` exposes `retention_period`, `storage_type` and `storage_on_disk`. `storage_on_disk` is omitted for the in-memory backend, since reporting `0 B` there would read as "nothing stored" rather than "not applicable"
 - `common.GetRetentionPeriodString()` and `timeseries.GetStorageType()`
+### Fixed
+- **Traced-function memory was measured wrong, and reported when it had not been
+  measured at all.** The delta came from `runtime.MemStats.Alloc`, which is bytes
+  currently *live*, so a collection during the call dropped it and the
+  difference went negative; that was guarded and otherwise reported as zero, so
+  a heavy allocator that triggered a GC recorded as allocating nothing. Using
+  `TotalAlloc`, which is cumulative, `main.highMemoryUsage` goes from a measured
+  0 to a measured 766.52 MB. Separately, profiling runs on one call in
+  `SamplingRate` (100 by default), so 99 calls in 100 had never been measured and
+  showed a confident `0`; `memory_usage_sampled` now distinguishes the two and
+  the dashboard renders an em dash for the unmeasured case
+- The goroutine delta clamped negatives to zero, so a call that let goroutines
+  finish looked identical to one that did nothing. It is also process-wide
+  rather than per-function -- any other goroutine starting or finishing during
+  the call moves it -- which is now stated at the type rather than implied away
+  by the column heading
+- The function detail panel labelled values "cumulative". Every `FunctionMetrics`
+  field is overwritten by each traced call, so they all describe the most recent
+  one
+- **Staleness no longer decides whether goroutines are leaking.** A listener
+  parked in netpoll and a signal handler waiting for SIGTERM are both
+  permanently blocked and both healthy, and every Go server has them, so a
+  staleness-driven verdict declared a leak on every process. The threshold had
+  been pushed to 24 hours to stop it firing, which removed the only signal it
+  carried. `LeakSuspected` now follows growth, which is what separates a leak
+  from a long wait; stale counts remain as context, and the threshold returns to
+  30 minutes
+- A function row could be opened but not closed. `hidden` works by applying
+  `display: none` from the UA stylesheet, which loses to every author rule, so
+  `display: flex` silently defeated it. The same rule made every unopened row
+  reserve 31px for an empty box
+- The health ring shaded itself on a threshold invented in the front end while
+  the text beside it used the server's verdict, so a brown ring could sit next
+  to the word "Healthy". The server holds the configured limits and is the only
+  thing that knows what healthy means for a service
+- Three light-theme components put coloured text on a tint of its own colour,
+  which holds on a dark ground and fails on a light one
+
+### Note on v2.0.0
+The `v2.0.0` tag remains unreachable and cannot be retracted. `retract v2.0.0`
+in a module whose path has no `/v2` suffix is itself rejected -- *"version
+v2.0.0 invalid: should be v0 or v1, not v2"* -- so the same rule that stops the
+proxy serving the tag stops it being formally withdrawn. It is inert either way:
+`go get @latest` resolves to the newest v1, and `go list -m -versions` does not
+list it. It survives only on the GitHub releases page.
+
+## [1.4.1] - 2026-08-29
+
+Released on its own, ahead of the dashboard work, because none of it
+depends on that and a credential the dashboard hands itself should not
+wait behind a UI project.
+
+### Security
+- **The dashboard no longer asserts its own privilege.** `authenticatedFetch`
+  attached `X-User-Role: admin` and a hardcoded `monigo-admin-secret` to every
+  request that carried no API key, both lifted from
+  `example/security-examples/custom-auth`, whose auth function grants access for
+  precisely those. A consumer following that documented example got a dashboard
+  that satisfied their own auth check on its own say-so. A browser cannot vouch
+  for itself; custom authentication belongs in the middleware
+- The API key moves from the query string to an `X-API-Key` header. As a query
+  parameter it was recorded in browser history, sent in the `Referer` to any
+  external link the page carried, and written to every access log in between.
+  `APIKeyMiddleware` already accepted both forms
 
 ## [1.4.0] - 2026-08-28
 

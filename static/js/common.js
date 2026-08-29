@@ -40,51 +40,88 @@ document.addEventListener('DOMContentLoaded', () => {
         return fetch(url, options);
     }
 
-    // 1. Theme Configuration & Toggle Initialization (Synchronous, prioritized)
-    const savedTheme = localStorage.getItem('monigo-theme') || 'light';
-    
-    // Inject theme toggle button into the correct, visible top right navbar-list
-    const navbarList = document.querySelector('#navbarSupportedContent .navbar-list') || document.querySelector('.navbar-nav.navbar-list');
-    if (navbarList) {
-        const toggleLi = document.createElement('li');
-        toggleLi.className = 'nav-item nav-icon ml-3';
-        
-        const toggleLink = document.createElement('a');
-        toggleLink.id = 'theme-toggle-btn';
-        toggleLink.className = 'cursor-pointer';
-        toggleLink.innerHTML =
-            '<svg class="icon" aria-hidden="true" style="width:16px;height:16px;"><use href="#i-moon"></use></svg>';
-        
-        toggleLi.appendChild(toggleLink);
-        navbarList.appendChild(toggleLi);
-        
-        // Add event listener to toggle theme
-        toggleLink.addEventListener('click', () => {
-            const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(newTheme);
+    /*
+     * Theme.
+     *
+     * The stylesheet keys off body[data-theme]. Light is the default, and the
+     * markup carries data-theme="light" so a first visit paints it directly
+     * rather than flashing the :root palette before this runs.
+     *
+     * The old class-based mechanism (body.dark-theme) and the toggle injected
+     * into the vendored navbar both went with that navbar. The storage key and
+     * its 'dark'/'light' values are unchanged, so a preference set before this
+     * change is still honoured.
+     */
+    function setTheme(theme) {
+        document.body.setAttribute('data-theme', theme);
+        try {
+            localStorage.setItem('monigo-theme', theme);
+        } catch (e) {
+            /* private mode: the toggle still works, it just will not persist */
+        }
+        setThemeIcon(theme === 'dark' ? '#i-sun' : '#i-moon');
+        document.dispatchEvent(new CustomEvent('monigoThemeChanged', { detail: { theme } }));
+    }
+
+    function setThemeIcon(href) {
+        const icon = document.getElementById('mg-theme-icon');
+        if (icon) {
+            icon.setAttribute('href', href);
+        }
+    }
+
+    let savedTheme = 'light';
+    try {
+        savedTheme = localStorage.getItem('monigo-theme') || 'light';
+    } catch (e) {
+        /* ignore */
+    }
+
+    const themeToggle = document.getElementById('mg-theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            setTheme(document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
         });
     }
 
-    function setTheme(theme) {
-        if (theme === 'dark') {
-            document.body.classList.add('dark-theme');
-            localStorage.setItem('monigo-theme', 'dark');
-            const icon = document.querySelector('#theme-toggle-btn use');
-            if (icon) {
-                icon.setAttribute('href', '#i-sun');
+    /*
+     * Navigation on narrow viewports. Below 1000px the rail is out of flow, so
+     * without this there is no way to reach another page: .mg-app is
+     * overflow:hidden and only .mg-content scrolls.
+     */
+    const app = document.querySelector('.mg-app');
+    const navToggle = document.getElementById('mg-topbar-menu');
+    if (app && navToggle) {
+        const setOpen = open => {
+            app.classList.toggle('is-navopen', open);
+            navToggle.setAttribute('aria-expanded', String(open));
+        };
+        navToggle.addEventListener('click', () => {
+            setOpen(!app.classList.contains('is-navopen'));
+        });
+        // The scrim is a pseudo-element on .mg-app, so its clicks land here.
+        app.addEventListener('click', e => {
+            if (app.classList.contains('is-navopen') &&
+                !e.target.closest('.mg-rail') &&
+                !e.target.closest('#mg-topbar-menu')) {
+                setOpen(false);
             }
-        } else {
-            document.body.classList.remove('dark-theme');
-            localStorage.setItem('monigo-theme', 'light');
-            const icon = document.querySelector('#theme-toggle-btn use');
-            if (icon) {
-                icon.setAttribute('href', '#i-moon');
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                setOpen(false);
             }
-        }
-        // Emit event to notify other scripts (like charts) to update colors
-        document.dispatchEvent(new CustomEvent('monigoThemeChanged', { detail: { theme } }));
+        });
     }
+
+    // Marks the current page in the rail, so no page has to hardcode it.
+    (function markActiveNav() {
+        const here = location.pathname.split('/').pop() || 'index.html';
+        document.querySelectorAll('.mg-nav a').forEach(a => {
+            const href = (a.getAttribute('href') || '').split('/').pop();
+            a.classList.toggle('is-active', href === here);
+        });
+    }());
 
     // Apply saved theme preference immediately
     setTheme(savedTheme);
@@ -176,6 +213,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const go = (info.go_version || '').replace(/^go/, '');
                     metaEl.textContent = `pid ${info.process_id || '-'}${go ? ' \u00b7 go' + go : ''}`;
                 }
+                const version = document.getElementById('mg-version');
+                if (version) {
+                    // Read from build info server-side, and omitted when it is
+                    // not knowable -- a local checkout or a replace directive.
+                    // Hidden rather than shown as "(devel)".
+                    version.textContent = info.monigo_version || '';
+                    version.hidden = !info.monigo_version;
+                }
+
                 // Retention and footprint are properties of the instrument, so
                 // they sit in the chrome. Both are omitted by the API when
                 // unset, so absent means "not configured", not "zero".
@@ -224,6 +270,181 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fillShell();
+
+    /* ================================================================ MG
+     *
+     * Shared runtime. Everything below is chrome that every page needs and no
+     * page should re-implement: connection state, the as-of stamp, the
+     * staleness banner, and the poll loop that drives them.
+     *
+     * Exposed on window.MG so the page renderers can drive it without each
+     * keeping its own setInterval and its own idea of whether the server is
+     * answering.
+     */
+
+    const status = { state: 'ok', fails: 0, lastGood: null };
+
+    function clockUTC(d) {
+        return (d || new Date()).toISOString().slice(11, 19) + 'Z';
+    }
+
+    function renderStatus() {
+        const dot = document.getElementById('mg-status-dot');
+        if (dot) {
+            dot.classList.remove('is-stale', 'is-down');
+            if (status.state !== 'ok') {
+                dot.classList.add(status.state === 'down' ? 'is-down' : 'is-stale');
+            }
+            dot.title = status.state === 'ok' ? 'Connected'
+                : status.state === 'down' ? 'Lost connection to the service'
+                    : 'Data is stale';
+        }
+
+        // Dim the numbers while a poll is failing, so a stale reading cannot be
+        // mistaken for a current one.
+        const content = document.getElementById('mg-content');
+        if (content) {
+            content.classList.toggle('is-stale', status.state !== 'ok');
+        }
+
+        const banner = document.getElementById('mg-banner');
+        if (!banner) {
+            return;
+        }
+        if (status.state === 'ok') {
+            banner.textContent = '';
+            banner.hidden = true;
+            return;
+        }
+        banner.hidden = false;
+        banner.className = 'mg-note ' + (status.state === 'down' ? 'mg-note--bad' : 'mg-note--warn');
+        const since = status.lastGood ? clockUTC(status.lastGood) : 'never';
+        banner.innerHTML =
+            '<svg class="mg-icon" aria-hidden="true"><use href="#i-alert-triangle"></use></svg>' +
+            '<span><b>' +
+            (status.state === 'down' ? 'No response from the service.' : 'Data is stale.') +
+            '</b> Showing the last snapshot from ' + since + '. ' +
+            (status.fails > 1 ? status.fails + ' failed polls.' : 'Retrying…') +
+            '</span><button type="button" class="mg-note__act" id="mg-retry">Retry now</button>';
+        const retry = document.getElementById('mg-retry');
+        if (retry) {
+            retry.addEventListener('click', () => Poll.tick(true));
+        }
+    }
+
+    function markOk() {
+        status.fails = 0;
+        status.lastGood = new Date();
+        if (status.state !== 'ok') {
+            status.state = 'ok';
+        }
+        renderStatus();
+        const el = document.getElementById('mg-asof');
+        if (el) {
+            el.textContent = 'as of ' + clockUTC(status.lastGood);
+        }
+    }
+
+    function markFail(err) {
+        status.fails++;
+        // One miss is a blip. Escalating to "down" only after a retry has also
+        // failed keeps a single dropped poll from flashing an alarm.
+        status.state = status.fails >= 2 ? 'down' : 'stale';
+        renderStatus();
+        if (err) {
+            console.error('[monigo] poll failed:', err);
+        }
+    }
+
+    const Poll = {
+        fn: null,
+        interval: 15000,
+        timer: null,
+        running: true,
+
+        start(fn, interval) {
+            this.fn = fn;
+            this.interval = interval || 15000;
+            this.tick(true);
+            this.timer = setInterval(() => Poll.tick(false), this.interval);
+
+            const btn = document.getElementById('mg-live');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    Poll.running = !Poll.running;
+                    btn.classList.toggle('is-live', Poll.running);
+                    btn.setAttribute('aria-pressed', String(Poll.running));
+                    const label = document.getElementById('mg-live-label');
+                    if (label) {
+                        label.textContent = Poll.running ? 'LIVE' : 'PAUSED';
+                    }
+                    if (Poll.running) {
+                        Poll.tick(true);
+                    }
+                });
+            }
+
+            // Polling a hidden tab spends the profiled process's CPU on nothing.
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && Poll.running) {
+                    Poll.tick(false);
+                }
+            });
+        },
+
+        tick(force) {
+            if (!this.fn) {
+                return;
+            }
+            if (!force && (!this.running || document.hidden)) {
+                return;
+            }
+            Promise.resolve()
+                .then(() => this.fn())
+                .then(() => markOk())
+                .catch(err => markFail(err));
+        },
+    };
+
+    // Inline SVG sparkline. Values are normalised across their own range, so
+    // the shape is readable whatever the units.
+    function sparkline(values, opts) {
+        opts = opts || {};
+        const w = opts.width || 240;
+        const h = opts.height || 44;
+        const stroke = opts.stroke || 'var(--acc)';
+        const pts = (values || []).filter(v => typeof v === 'number' && isFinite(v));
+        if (pts.length < 2) {
+            return '<svg class="mg-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none"></svg>';
+        }
+        const lo = Math.min(...pts);
+        const hi = Math.max(...pts);
+        // A series that never moved has no low and no high; scaling it normally
+        // pins it to the floor, which reads as "at its minimum" rather than
+        // "flat". Centre it instead.
+        const flat = hi === lo;
+        const span = hi - lo;
+        const d = pts.map((v, i) => {
+            const x = (i / (pts.length - 1)) * w;
+            const y = flat ? h / 2 : h - 4 - ((v - lo) / span) * (h - 8);
+            return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+        }).join(' ');
+        return '<svg class="mg-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+            '<path d="' + d + ' L' + w + ' ' + h + ' L0 ' + h + ' Z" fill="' + stroke + '" opacity=".14"></path>' +
+            '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="1.6" ' +
+            'vector-effect="non-scaling-stroke"></path></svg>';
+    }
+
+    window.MG = {
+        Poll,
+        status,
+        sparkline,
+        clockUTC,
+        markOk,
+        markFail,
+        authenticatedFetch,
+    };
+
     fillNavBadges();
 
     // Fetch metrics on load

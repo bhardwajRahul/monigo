@@ -152,6 +152,11 @@ func (m *Monigo) initCommon() {
 		location = time.Local
 	}
 
+	// Takes the first CPU reading so the first request served has a real delta
+	// to report. gopsutil returns the since-boot average when it has no earlier
+	// call to compare against.
+	common.PrimeCPUSampler()
+
 	m.DataPointsSyncFrequency = common.DefaultIfEmpty(m.DataPointsSyncFrequency, "5m")
 	m.DataRetentionPeriod = common.DefaultIfEmpty(m.DataRetentionPeriod, "7d")
 	m.MaxCPUUsage = common.DefaultFloatIfZero(m.MaxCPUUsage, 95)
@@ -484,8 +489,8 @@ func GetAPIHandlers(customBaseAPIPath ...string) map[string]http.HandlerFunc {
 		fmt.Sprintf("%s/go-routines-stats", apiPath): api.GetGoRoutinesStats,
 		fmt.Sprintf("%s/function", apiPath):          api.GetFunctionTraceDetails,
 		fmt.Sprintf("%s/function-details", apiPath):  api.ViewFunctionMetrics,
-		"/metrics":                                   api.PrometheusMetricsHandler,
-		fmt.Sprintf("%s/reports", apiPath):           api.GetReportData,
+		"/metrics":                         api.PrometheusMetricsHandler,
+		fmt.Sprintf("%s/reports", apiPath): api.GetReportData,
 	}
 }
 
@@ -558,8 +563,8 @@ func GetSecuredAPIHandlers(m *Monigo, customBaseAPIPath ...string) map[string]ht
 		fmt.Sprintf("%s/go-routines-stats", apiPath): api.GetGoRoutinesStats,
 		fmt.Sprintf("%s/function", apiPath):          api.GetFunctionTraceDetails,
 		fmt.Sprintf("%s/function-details", apiPath):  api.ViewFunctionMetrics,
-		"/metrics":                                   api.PrometheusMetricsHandler,
-		fmt.Sprintf("%s/reports", apiPath):           api.GetReportData,
+		"/metrics":                         api.PrometheusMetricsHandler,
+		fmt.Sprintf("%s/reports", apiPath): api.GetReportData,
 	}
 
 	securedHandlers := make(map[string]http.HandlerFunc)

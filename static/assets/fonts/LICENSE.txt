@@ -1,0 +1,10 @@
+IBM Plex Mono
+Copyright (c) 2017 IBM Corp. https://github.com/IBM/plex
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The full licence text is available at https://scripts.sil.org/OFL
+
+These files are subsets of the upstream faces, reduced to Latin-1 plus the
+punctuation, arrows and box-drawing ranges the dashboard actually renders.
+Generated with fonttools pyftsubset; see the commit that added them for the
+exact unicode range and layout features retained.

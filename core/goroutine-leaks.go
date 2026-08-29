@@ -21,7 +21,19 @@ const (
 	// defaultStaleThreshold is how long a goroutine must stay blocked before it
 	// is treated as stale. The runtime reports block duration in whole minutes,
 	// so anything below a minute is not expressible.
-	defaultStaleThreshold = 24 * time.Hour
+	//
+	// This was 24 hours, which made staleness effectively unreachable. The
+	// reason was sound: staleness used to *by itself* declare a leak, and
+	// plenty of healthy goroutines park forever -- a listener in netpoll, a
+	// signal handler, a ticker. At any shorter threshold every server on earth
+	// reported a permanent leak, so the threshold was pushed out until it never
+	// fired, and with it went the only signal it carried.
+	//
+	// Staleness no longer decides the verdict (see buildReport), so it can go
+	// back to a duration that actually tells you something. Thirty minutes is
+	// long enough that a slow request or a periodic job is not caught, short
+	// enough to notice within one sitting.
+	defaultStaleThreshold = 30 * time.Minute
 
 	// defaultSnapshotWindow is how many periodic snapshots are retained. Growth
 	// is only reported once the window is full, so a group must rise in every
@@ -32,6 +44,13 @@ const (
 	// maxSuspiciousGroups caps how many offending groups a report carries, so a
 	// pathological process cannot produce an unbounded API response.
 	maxSuspiciousGroups = 20
+
+	// maxGroups caps the full group list the report carries for the dashboard.
+	// Each entry embeds a call stack, so this is the difference between a few
+	// KB and a multi-megabyte response on a service with thousands of distinct
+	// stacks. Groups are sorted worst-first, so a truncated list still leads
+	// with everything worth looking at.
+	maxGroups = 60
 )
 
 // goroutineHeaderPattern matches the header line the runtime writes for each
@@ -224,6 +243,7 @@ func buildReport(total int, groups map[string]*models.GoroutineGroup) *models.Go
 	}
 
 	var suspicious []models.GoroutineGroup
+	all := make([]models.GoroutineGroup, 0, len(groups))
 	for sig, g := range groups {
 		entry := *g
 		entry.Growth, entry.Growing = growthFor(sig)
@@ -238,29 +258,57 @@ func buildReport(total int, groups map[string]*models.GoroutineGroup) *models.Go
 		if entry.Stale || entry.Growing {
 			suspicious = append(suspicious, entry)
 		}
+		all = append(all, entry)
 	}
 
 	// Worst first: longest-blocked, then fastest-growing, then largest. The
 	// signature tie-breaker keeps ordering deterministic for equal groups.
-	sort.Slice(suspicious, func(i, j int) bool {
-		a, b := suspicious[i], suspicious[j]
-		if a.BlockedMinutes != b.BlockedMinutes {
-			return a.BlockedMinutes > b.BlockedMinutes
+	worstFirst := func(list []models.GoroutineGroup) func(i, j int) bool {
+		return func(i, j int) bool {
+			a, b := list[i], list[j]
+			if a.BlockedMinutes != b.BlockedMinutes {
+				return a.BlockedMinutes > b.BlockedMinutes
+			}
+			if a.Growth != b.Growth {
+				return a.Growth > b.Growth
+			}
+			if a.Count != b.Count {
+				return a.Count > b.Count
+			}
+			return a.Signature < b.Signature
 		}
-		if a.Growth != b.Growth {
-			return a.Growth > b.Growth
-		}
-		if a.Count != b.Count {
-			return a.Count > b.Count
-		}
-		return a.Signature < b.Signature
-	})
+	}
+	sort.Slice(suspicious, worstFirst(suspicious))
+	sort.Slice(all, worstFirst(all))
 
 	if len(suspicious) > maxSuspiciousGroups {
 		suspicious = suspicious[:maxSuspiciousGroups]
 	}
 	report.SuspiciousGroups = suspicious
-	report.LeakSuspected = report.StaleGoroutines > 0 || report.GrowingGroups > 0
+
+	// GroupsTotal is set before truncating, so it reports what exists rather
+	// than what survived the cap.
+	report.GroupsTotal = len(all)
+	if len(all) > maxGroups {
+		all = all[:maxGroups]
+	}
+	report.Groups = all
+	/*
+	 * A leak is growth. Something blocked for a long time is not leaking --
+	 * a listener parked in netpoll and a signal handler waiting for SIGTERM
+	 * are both permanently blocked and both perfectly healthy, and they exist
+	 * in every Go server there is.
+	 *
+	 * Treating staleness as a verdict is what forced the threshold out to 24
+	 * hours: at any useful duration it declared a leak on every process, so it
+	 * was tuned until it never fired. Growth is the signal that actually
+	 * distinguishes a leak from a long wait, and it is already strict -- a
+	 * group must rise in every retained snapshot.
+	 *
+	 * Stale counts are still reported. They are context for reading the table,
+	 * not grounds for an alarm.
+	 */
+	report.LeakSuspected = report.GrowingGroups > 0
 	report.Message = describeReport(report, threshold)
 
 	return report
@@ -279,21 +327,18 @@ func describeReport(r *models.GoroutineLeakReport, threshold time.Duration) stri
 		return fmt.Sprintf("No goroutine leak detected across %d goroutines.", r.TotalGoroutines)
 	}
 
-	var parts []string
-	if r.StaleGoroutines > 0 {
-		parts = append(parts, fmt.Sprintf(
-			"%d goroutine(s) blocked for at least %s", r.StaleGoroutines, formatThreshold(threshold),
-		))
-	}
-	if r.GrowingGroups > 0 {
-		parts = append(parts, fmt.Sprintf(
-			"%d call stack(s) growing across the last %d snapshots", r.GrowingGroups, r.SnapshotsRequired,
-		))
-	}
-	return fmt.Sprintf(
-		"Possible goroutine leak: %s (total goroutines: %d).",
-		strings.Join(parts, "; "), r.TotalGoroutines,
+	// Growth is what raised this, so it leads. Staleness follows as context
+	// when there is any, since a stack that is both growing and long-blocked
+	// is a stronger signal than one that is only growing.
+	msg := fmt.Sprintf(
+		"Possible goroutine leak: %d call stack(s) growing across the last %d snapshots",
+		r.GrowingGroups, r.SnapshotsRequired,
 	)
+	if r.StaleGoroutines > 0 {
+		msg += fmt.Sprintf("; %d goroutine(s) also blocked for at least %s",
+			r.StaleGoroutines, formatThreshold(threshold))
+	}
+	return msg + fmt.Sprintf(" (total goroutines: %d).", r.TotalGoroutines)
 }
 
 // formatThreshold renders a duration the way an operator would say it. Whole
