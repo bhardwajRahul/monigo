@@ -157,3 +157,32 @@ func TestP95SitsBelowATailOfExactlyFivePercent(t *testing.T) {
 			"so p95 should not reach the tail", p95)
 	}
 }
+
+// Resolution has to be fine enough to separate functions an operator would
+// treat differently. With powers-of-four buckets a 30ms and a 60ms function
+// both reported p95 = 65.54ms -- measured on the example app -- which makes the
+// column unable to answer the one question it exists for.
+func TestBucketsSeparateFunctionsAnOperatorWouldRank(t *testing.T) {
+	t.Cleanup(resetLatencies)
+	resetLatencies()
+
+	for i := 0; i < 100; i++ {
+		observeLatency("quick", 30*time.Millisecond)
+		observeLatency("slow", 60*time.Millisecond)
+	}
+
+	_, quick, _, okQ := latencySummary("quick")
+	_, slow, _, okS := latencySummary("slow")
+	if !okQ || !okS {
+		t.Fatal("expected both summaries to be reliable at 100 samples")
+	}
+	if quick >= slow {
+		t.Errorf("30ms function reports p95 %v and 60ms reports %v; a 2x "+
+			"difference in latency must land in different buckets or the "+
+			"column cannot rank anything", quick, slow)
+	}
+	// And neither may under-report.
+	if quick < 30*time.Millisecond || slow < 60*time.Millisecond {
+		t.Errorf("p95 under-reported: quick=%v slow=%v", quick, slow)
+	}
+}
