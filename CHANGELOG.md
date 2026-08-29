@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Known gaps
+Two things the design canvas shows that the dashboard deliberately does not,
+because the data behind them does not exist yet. Both are tracked rather than
+faked, and the columns are absent rather than filled with plausible numbers:
+
+- **Exporters page** — needs Prometheus and OTel status surfaced server-side (#67)
+- **Per-function `CALLS`, `P50`, `P95`** — `FunctionMetrics` overwrites on every
+  call, so there is no distribution to derive them from (#68)
+
 ## [1.5.0] - 2026-08-29
 
 The dashboard rebuilt on the new design, and a set of measurements that
