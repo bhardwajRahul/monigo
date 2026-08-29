@@ -7,7 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-30
+
+### Added
+
+- **Exporters page.** Prometheus and OTel status, at
+  `GET /monigo/api/v1/exporters` and in the dashboard nav. Push and pull are
+  reported in their own terms rather than flattened into one pass/fail:
+  Prometheus scrapes MoniGo, so it shows when it was last scraped and carries
+  no failure count -- a scrape that fails, fails at the collector and the
+  server never learns of it -- while a push exporter shows last attempt, last
+  success, consecutive failures and the transport error verbatim
+
+### Changed
+
+- **`go get` downloads 25 MB less.** `monigo.gif` was 24.7 MB of a 25 MB module
+  zip -- 96% of what every consumer fetched, on every build, was a README image
+  the compiler never looks at. It now lives on the `assets` branch, which is
+  never tagged and so is not part of any module version, and the README
+  references it by absolute URL. GitHub renders it identically.
+  `TestDocumentationMediaDoesNotShipInTheModule` fails if documentation media
+  is added back inside the module
+- `new_static_mockups/` is deleted -- 148 KB of design scaffolding from the
+  dashboard rebuild, referenced by no Go code and shipped to every consumer.
+  The dashboard it described is live; git history keeps it
+- Local agent tooling (`.agents/`, `.claude/`, `skills-lock.json`) is
+  gitignored. It is per-developer, and anything at the module root ships to
+  consumers
+
+- `SetSamplingRate` and `WithSamplingRate` now document the cost of a sampled
+  call: `pprof.StopCPUProfile` blocks on the runtime's buffer flush for a
+  roughly constant ~200ms regardless of how long the function ran, measured at
+  201.8ms of overhead on a 1ms call. `ExecutionTime` is captured before the
+  stop, so the metric does not show it
+
+- **13 compiled example binaries are no longer tracked** -- 502 MB, 95% of the
+  repository. They were macOS arm64, so they could not run on Linux, Windows or
+  an Intel Mac and were unusable to almost everyone who downloaded them. Now
+  ignored by explicit path: they take the name of their directory and have no
+  extension, so none of `*.exe`, `*.dylib`, `/bin` or `*.test` ever matched,
+  and no glob can separate them from an extensionless source file.
+  `TestNoCompiledBinaryIsTracked` checks the magic number of every tracked file
+  instead. Existing clones keep their history until it is rewritten separately
+
 ### Fixed
+
 - **Service-health CPU was inflated by `100/TotalCores`.** `getServiceCPUUsage`
   returns percent of one core -- the `top` convention gopsutil follows -- and
   the health calculation divided it by the core count and then multiplied by
@@ -20,7 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   report percent of one core, and a test fails if the reading scales with core
   count again
 
-### Fixed
 - **The health badge contradicted the sentence beside it, and flapped.**
   `Healthy` came from the composite score crossing 50, while the message under
   it came from a threshold comparison, and nothing kept the two in step: the
@@ -38,22 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one resource over its own limit. Averaging remains correct for the graded
   score and is kept there
 
-### Changed
-- **`go get` downloads 25 MB less.** `monigo.gif` was 24.7 MB of a 25 MB module
-  zip -- 96% of what every consumer fetched, on every build, was a README image
-  the compiler never looks at. It now lives on the `assets` branch, which is
-  never tagged and so is not part of any module version, and the README
-  references it by absolute URL. GitHub renders it identically.
-  `TestDocumentationMediaDoesNotShipInTheModule` fails if documentation media
-  is added back inside the module
-- `new_static_mockups/` is deleted -- 148 KB of design scaffolding from the
-  dashboard rebuild, referenced by no Go code and shipped to every consumer.
-  The dashboard it described is live; git history keeps it
-- Local agent tooling (`.agents/`, `.claude/`, `skills-lock.json`) is
-  gitignored. It is per-developer, and anything at the module root ships to
-  consumers
-
-### Fixed
 - **Profiling required the Go toolchain at runtime, so it was dead in
   production.** The profile view shelled out to `go tool pprof`, and on any
   distroless, scratch or alpine image -- nearly every production deployment of
@@ -71,33 +98,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   used no CPU". It now explains that the profiler samples at 100Hz and a call
   shorter than that usually records nothing
 
-### Changed
-- `SetSamplingRate` and `WithSamplingRate` now document the cost of a sampled
-  call: `pprof.StopCPUProfile` blocks on the runtime's buffer flush for a
-  roughly constant ~200ms regardless of how long the function ran, measured at
-  201.8ms of overhead on a 1ms call. `ExecutionTime` is captured before the
-  stop, so the metric does not show it
-
-### Changed
-- **13 compiled example binaries are no longer tracked** -- 502 MB, 95% of the
-  repository. They were macOS arm64, so they could not run on Linux, Windows or
-  an Intel Mac and were unusable to almost everyone who downloaded them. Now
-  ignored by explicit path: they take the name of their directory and have no
-  extension, so none of `*.exe`, `*.dylib`, `/bin` or `*.test` ever matched,
-  and no glob can separate them from an extensionless source file.
-  `TestNoCompiledBinaryIsTracked` checks the magic number of every tracked file
-  instead. Existing clones keep their history until it is rewritten separately
-
-### Added
-- **Exporters page.** Prometheus and OTel status, at
-  `GET /monigo/api/v1/exporters` and in the dashboard nav. Push and pull are
-  reported in their own terms rather than flattened into one pass/fail:
-  Prometheus scrapes MoniGo, so it shows when it was last scraped and carries
-  no failure count -- a scrape that fails, fails at the collector and the
-  server never learns of it -- while a push exporter shows last attempt, last
-  success, consecutive failures and the transport error verbatim
-
-### Fixed
 - **The OTel exporter reported success against an unreachable collector.**
   `Export` only stored values; the SDK's reader shipped them later on its own
   clock, so the error never reached the caller and the dashboard would have
