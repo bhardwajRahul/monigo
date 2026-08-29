@@ -14,7 +14,7 @@
 **MoniGo** is a lightweight, embeddable observability library for Go services. It collects runtime metrics (CPU, memory, goroutines, disk/network I/O), traces function execution with pprof profiling, stores time-series data, and serves a real-time dashboard - all from a single `go get`.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/iyashjayesh/monigo/assets/monigo.gif" width="100%" alt="MoniGo dashboard">
+  <img src="https://raw.githubusercontent.com/iyashjayesh/monigo/assets/hero.webp" width="100%" alt="MoniGo dashboard - overview">
 </div>
 
 ## Features
@@ -27,6 +27,32 @@
 - **Dashboard Security** - Basic Auth, API Key, IP Whitelist, Rate Limiting middleware
 - **Headless Mode** - Run as a background telemetry agent without the dashboard
 - **Builder API** - Type-safe, chainable configuration with validation
+
+### Per-function metrics
+
+Call counts and approximate latency percentiles for every traced function, with
+memory and goroutine deltas. Percentiles are bucket upper bounds, shown as `~4ms`
+meaning "at most 4ms", and read `-` below 20 calls rather than pretending three
+samples make a p95.
+
+<img src="https://raw.githubusercontent.com/iyashjayesh/monigo/assets/page-functions.webp" width="100%" alt="Per-function metrics with call counts and latency percentiles">
+
+### Goroutine inspection
+
+Live goroutines grouped by stack signature, with state, how long each group has
+been blocked, and growth across snapshots -- so a leak shows up as a group that
+keeps growing rather than a number that keeps rising.
+
+<img src="https://raw.githubusercontent.com/iyashjayesh/monigo/assets/page-goroutines.webp" width="100%" alt="Goroutines grouped by stack signature with leak detection">
+
+### Exporter status
+
+Prometheus and OpenTelemetry reported in their own terms. MoniGo is scraped by
+Prometheus and pushes to OTel, so the pull exporter shows when it was last
+scraped and carries no failure count -- a failed scrape fails at the collector,
+and the server never hears about it.
+
+<img src="https://raw.githubusercontent.com/iyashjayesh/monigo/assets/page-exporters.webp" width="100%" alt="Prometheus and OpenTelemetry exporter status">
 
 ## Installation
 
