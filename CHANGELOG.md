@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`go get` downloads 25 MB less.** `monigo.gif` was 24.7 MB of a 25 MB module
+  zip -- 96% of what every consumer fetched, on every build, was a README image
+  the compiler never looks at. It now lives on the `assets` branch, which is
+  never tagged and so is not part of any module version, and the README
+  references it by absolute URL. GitHub renders it identically.
+  `TestDocumentationMediaDoesNotShipInTheModule` fails if documentation media
+  is added back inside the module
+- `new_static_mockups/` is deleted -- 148 KB of design scaffolding from the
+  dashboard rebuild, referenced by no Go code and shipped to every consumer.
+  The dashboard it described is live; git history keeps it
+- Local agent tooling (`.agents/`, `.claude/`, `skills-lock.json`) is
+  gitignored. It is per-developer, and anything at the module root ships to
+  consumers
+
 ### Fixed
 - **Profiling required the Go toolchain at runtime, so it was dead in
   production.** The profile view shelled out to `go tool pprof`, and on any

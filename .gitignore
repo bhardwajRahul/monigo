@@ -66,3 +66,14 @@ monigo/
 /example/security-examples/custom-auth/custom-auth-example
 /example/security-examples/echo/echo-secured-example
 /example/security-examples/ip-whitelist-example/ip-whitelist-example
+
+# Local agent tooling (skills installed by `npx skills add`, per-developer
+# agent config). None of it is part of the library.
+#
+# This matters more here than in a normal repo: everything at the module root
+# ships inside the Go module zip, so anything committed here is downloaded by
+# every consumer on every `go get`. A 24 MB README gif is already 96% of that
+# zip; agent skills should not be added to it.
+.agents/
+.claude/
+skills-lock.json
