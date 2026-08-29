@@ -179,8 +179,18 @@ func TestStaleDetection(t *testing.T) {
 	if report.StaleGoroutines != 2 {
 		t.Errorf("stale goroutines = %d, want 2", report.StaleGoroutines)
 	}
-	if !report.LeakSuspected {
-		t.Error("expected LeakSuspected with stale goroutines present")
+	/*
+	 * Staleness alone is NOT a leak, and this is the test that pins it.
+	 *
+	 * A listener parked in netpoll and a signal handler waiting for SIGTERM are
+	 * both blocked forever and both healthy; every Go server has them. When
+	 * staleness decided the verdict, the only way to stop it crying leak on
+	 * every process was to push the threshold out to 24 hours, at which point
+	 * it never fired at all. Growth is what separates a leak from a long wait.
+	 */
+	if report.LeakSuspected {
+		t.Error("stale goroutines alone must not be reported as a leak: " +
+			"blocked-for-a-long-time is the normal state of a listener")
 	}
 	if report.StaleThresholdMinutes != 60 {
 		t.Errorf("threshold minutes = %d, want 60", report.StaleThresholdMinutes)
@@ -193,8 +203,45 @@ func TestStaleDetection(t *testing.T) {
 		t.Errorf("first suspicious group blocked = %d, want 600",
 			report.SuspiciousGroups[0].BlockedMinutes)
 	}
+	// Reported as context, not as an alarm.
+	if strings.Contains(report.Message, "Possible goroutine leak") {
+		t.Errorf("message should not claim a leak with nothing growing: %q", report.Message)
+	}
+}
+
+// The other half of the contract above: growth IS the leak signal, and when it
+// fires alongside staleness the message says both.
+func TestGrowthIsWhatDeclaresALeak(t *testing.T) {
+	t.Cleanup(ResetLeakDetectionState)
+	ResetLeakDetectionState()
+	SetStaleGoroutineThreshold(60 * time.Minute)
+
+	// Fill the window with a stack that rises every time, recording snapshots
+	// directly so the final report is not itself an extra sample.
+	var final []string
+	for i := 1; i <= defaultSnapshotWindow; i++ {
+		blocks := make([]string, 0, i+1)
+		for n := 0; n < i; n++ {
+			blocks = append(blocks, block(n+1, "chan receive", 600, "growing"))
+		}
+		blocks = append(blocks, block(900, "running", 0, "healthy"))
+		recordSnapshot(groupGoroutines(blocks))
+		final = blocks
+	}
+
+	report := leakReportFor(final)
+
+	if report.GrowingGroups == 0 {
+		t.Fatal("expected a growing group after a full monotonic window")
+	}
+	if !report.LeakSuspected {
+		t.Error("growth must declare a leak")
+	}
 	if !strings.Contains(report.Message, "Possible goroutine leak") {
-		t.Errorf("unexpected message: %q", report.Message)
+		t.Errorf("message should lead with the leak: %q", report.Message)
+	}
+	if !strings.Contains(report.Message, "also blocked for at least") {
+		t.Errorf("message should carry the stale count as context: %q", report.Message)
 	}
 }
 

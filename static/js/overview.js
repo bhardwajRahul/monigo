@@ -915,8 +915,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     pkg.textContent = short === name ? '' : name.slice(0, name.length - short.length);
                 }
                 node.querySelector('.mg-hot__exec').textContent = formatDuration(execMs(m));
-                node.querySelector('.mg-hot__mem').textContent =
-                    m.memory_usage ? String(m.memory_usage) : '—';
+                // An em dash here used to mean "zero", which conflated a
+                // function that allocated nothing with one whose allocation was
+                // never sampled -- profiling runs on one call in SamplingRate.
+                // The flag separates them, and the bytes get formatted rather
+                // than printed raw.
+                const memCell = node.querySelector('.mg-hot__mem');
+                if (m.memory_usage_sampled === true) {
+                    memCell.textContent = formatBytes(Number(m.memory_usage) || 0);
+                    memCell.title = 'Heap delta around the last sampled call';
+                } else {
+                    memCell.textContent = '—';
+                    memCell.title = 'Not sampled yet. Profiling runs on one call in SamplingRate.';
+                }
                 node.querySelector('.mg-hot__last').textContent = m.function_last_ran || '—';
                 rows.appendChild(node);
             });

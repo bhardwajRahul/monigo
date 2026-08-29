@@ -134,6 +134,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: parts.name,
                 exec: Number(m.execution_time) || 0,
                 mem: Number(m.memory_usage) || 0,
+                // Profiling runs on one call in SamplingRate (100 by default),
+                // so most functions have never had their allocation measured.
+                // Without this an unmeasured function is indistinguishable from
+                // one that allocated nothing.
+                memSampled: m.memory_usage_sampled === true,
                 gor: Number(m.goroutine_count) || 0,
                 last: m.function_last_ran_at,
                 lastMs: Date.parse(m.function_last_ran_at) || 0,
@@ -167,7 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
             node.querySelector('.mg-fn-name').textContent = r.name;
             node.querySelector('.mg-fn-pkg').textContent = r.pkg;
             node.querySelector('.mg-fn-exec').textContent = formatDuration(r.exec);
-            node.querySelector('.mg-fn-mem').textContent = formatBytes(r.mem);
+            const memCell = node.querySelector('.mg-fn-mem');
+            memCell.textContent = r.memSampled ? formatBytes(r.mem) : '—';
+            memCell.title = r.memSampled
+                ? 'Heap delta around the last sampled call'
+                : 'Not sampled yet. Profiling runs on one call in SamplingRate.';
             node.querySelector('.mg-fn-gor').textContent = r.gor;
             const last = node.querySelector('.mg-fn-last');
             last.textContent = formatWhen(r.last);
@@ -214,9 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const grid = document.createElement('div');
         grid.className = 'mg-fn-detailgrid';
         [
-            ['EXEC TIME', formatDuration(r.exec), 'cumulative'],
-            ['MEMORY Δ', formatBytes(r.mem), 'cumulative'],
-            ['GOROUTINE Δ', String(r.gor), r.gor ? 'net change' : 'no change'],
+            // Every field is the MOST RECENT call: a traced call overwrites the
+            // previous values. These said "cumulative", which was the opposite
+            // of true and would have had someone reading a single call as a
+            // total across all of them.
+            ['EXEC TIME', formatDuration(r.exec), 'last call'],
+            ['MEMORY Δ',
+                r.memSampled ? formatBytes(r.mem) : '—',
+                r.memSampled ? 'last sampled call' : 'not sampled yet'],
+            ['GOROUTINE Δ', String(r.gor), 'process-wide, around the call'],
             ['LAST RAN', formatWhen(r.last), new Date(r.lastMs).toLocaleString()],
         ].forEach(([label, value, note]) => {
             const cell = document.createElement('div');

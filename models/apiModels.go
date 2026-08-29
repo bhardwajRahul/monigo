@@ -210,11 +210,32 @@ type Profiles struct {
 }
 
 // FunctionMetrics represents the function metrics.
+//
+// Every field describes the MOST RECENT call, not a total across calls: each
+// traced call overwrites the previous values. There is no call counter and no
+// histogram, so percentiles and totals cannot be derived from this.
 type FunctionMetrics struct {
 	FunctionLastRanAt  time.Time     `json:"function_last_ran_at"`
 	CPUProfileFilePath string        `json:"cpu_profile_file_path"`
 	MemProfileFilePath string        `json:"mem_profile_file_path"`
-	MemoryUsage        uint64        `json:"memory_usage"`
-	GoroutineCount     int           `json:"goroutine_count"`
 	ExecutionTime      time.Duration `json:"execution_time"`
+
+	// MemoryUsage is the heap delta measured around the last *sampled* call.
+	// Profiling runs on one call in SamplingRate (100 by default), so most
+	// calls leave this untouched.
+	//
+	// MemoryUsageSampled says whether it was ever measured at all. Without it
+	// an unmeasured function is indistinguishable from one that allocated
+	// nothing, and the dashboard would print a confident 0 for both.
+	MemoryUsage        uint64 `json:"memory_usage"`
+	MemoryUsageSampled bool   `json:"memory_usage_sampled"`
+
+	// GoroutineCount is the change in the process-wide goroutine count observed
+	// across the last call: runtime.NumGoroutine() after minus before.
+	//
+	// It is NOT this function's goroutines. Any other goroutine starting or
+	// finishing during the call moves it, so on a busy process it is a hint
+	// rather than a measurement. Negative values are real and are kept: a call
+	// that lets goroutines finish is as interesting as one that starts them.
+	GoroutineCount int `json:"goroutine_count"`
 }
