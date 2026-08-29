@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.10
+	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a
 	github.com/nakabonne/tstorage v0.3.6
 	github.com/prometheus/client_golang v1.23.2
 	github.com/shirou/gopsutil v3.21.11+incompatible

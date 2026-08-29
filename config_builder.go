@@ -93,7 +93,14 @@ func (b *MonigoBuilder) WithAuthFunction(authFunc func(*http.Request) bool) *Mon
 	return b
 }
 
-// WithSamplingRate sets the sampling rate for function tracing
+// WithSamplingRate sets the sampling rate for function tracing: one call in
+// every `rate` is profiled. The default is 100.
+//
+// The sampled call pays a roughly constant ~200ms, independent of how long the
+// function itself runs, because pprof.StopCPUProfile blocks on the runtime's
+// buffer flush -- and because the CPU profiler samples at 100Hz, a call
+// shorter than ~10ms usually captures nothing for that cost. See
+// core.SetSamplingRate for the measurements and what to do about it.
 func (b *MonigoBuilder) WithSamplingRate(rate int) *MonigoBuilder {
 	b.config.SamplingRate = rate
 	return b

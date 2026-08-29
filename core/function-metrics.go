@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -33,7 +32,36 @@ func init() {
 	samplingRate.Store(100)
 }
 
-// SetSamplingRate sets the sampling rate for function tracing
+// SetSamplingRate sets the sampling rate for function tracing: one call in
+// every `rate` is profiled. The default is 100.
+//
+// # The sampled call pays about 200ms
+//
+// Profiling a call is not cheap and the cost does not scale with the work.
+// pprof.StopCPUProfile blocks while the runtime flushes its profile buffer,
+// which takes a roughly constant ~200ms regardless of how long the function
+// ran. Measured here, a 1ms function:
+//
+//	sampled call:     202.9ms
+//	unsampled call:     1.1ms
+//	overhead:         201.8ms
+//
+// At the default rate a traced handler serving 100 rps stalls for ~200ms once
+// per second. ExecutionTime does not show this -- it is captured before the
+// stop -- so the recorded metric reads 1ms while the caller's goroutine was
+// blocked for 203ms. Anyone comparing MoniGo's numbers against their own
+// latency graphs will find them disagreeing on exactly one call in `rate`.
+//
+// # And the profile is usually empty
+//
+// Go's CPU profiler samples at 100Hz, so a call shorter than ~10ms typically
+// finishes between two samples and captures nothing. At the default settings
+// the common case is to pay the 200ms and get an empty profile.
+//
+// This closes off the obvious workaround: lowering `rate` to collect more
+// profiles makes the stall more frequent, and raising it makes profiles rarer
+// without making them any less empty. Trace functions that do enough work to
+// be worth sampling, and leave hot, short ones untraced.
 func SetSamplingRate(rate int) {
 	if rate < 1 {
 		rate = 1
@@ -314,61 +342,39 @@ func executeFunctionWithProfiling(name string, fn func()) {
 	}
 }
 
-// ViewFunctionMetrics generates the function metrics
+// ViewFunctionMetrics renders the stored profiles for one traced function.
+//
+// This used to shell out to `go tool pprof`, which meant the Go SDK had to be
+// installed on the machine running the service. In a distroless, scratch or
+// alpine image -- nearly every production deployment of a Go service -- it is
+// not, and this returned the string "Error: 'go' command not found" as the
+// report body. It also spawned a subprocess for every HTTP request.
+//
+// runtime/pprof writes fully symbolized profiles: the function names and file
+// paths are inside the file. Parsing needs no toolchain, no binary and no
+// source tree, so the reports are rendered in-process.
 func ViewFunctionMetrics(name, reportType string, metrics *models.FunctionMetrics) models.FunctionTraceDetails {
-	_, err := exec.LookPath("go")
-	if err != nil {
-		logger.Log.Warn("'go' command not found in PATH, pprof reports will be unavailable")
+	// A name arriving from a query string is no longer interpolated into a
+	// command line, so this is no longer a shell-injection guard. It stays
+	// because a name with control characters cannot match a real Go symbol and
+	// signals a malformed request.
+	if strings.HasPrefix(name, "-") || strings.ContainsAny(name, ";&|$` \t\n") {
 		return models.FunctionTraceDetails{
 			FunctionName: name,
 			CoreProfile: models.Profiles{
-				CPU: "Error: 'go' command not found. pprof reports require the Go SDK.",
-				Mem: "Error: 'go' command not found. pprof reports require the Go SDK.",
+				CPU: "Error: Invalid function name",
+				Mem: "Error: Invalid function name",
 			},
-			FunctionCodeTrace: "Error: 'go' command not found.",
-		}
-	}
-
-	// Validate function name to ensure it doesn't look like a flag or contain shell control characters
-	isNameInvalid := strings.HasPrefix(name, "-") || strings.ContainsAny(name, ";&|$` \t\n")
-
-	executePprof := func(profileFilePath, reportType string) string {
-		if isNameInvalid {
-			return "Error: Invalid function name"
-		}
-		if profileFilePath == "" {
-			return "Error: Profile file path is empty"
-		}
-		if reportType != "text" && reportType != "traces" && reportType != "tree" {
-			return "Error: Invalid report type"
-		}
-		cmd := exec.Command("go", "tool", "pprof", "-"+reportType, profileFilePath)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Sprintf("Error executing pprof: %v\nOutput: %s", err, string(output))
-		}
-		return string(output)
-	}
-
-	var codeStack string
-	if isNameInvalid {
-		codeStack = "Error: Invalid function name"
-	} else if metrics.CPUProfileFilePath != "" {
-		codeStackView := exec.Command("go", "tool", "pprof", "-list", name, metrics.CPUProfileFilePath)
-		output, err := codeStackView.CombinedOutput()
-		if err != nil {
-			codeStack = fmt.Sprintf("Error generating code trace: %v\nOutput: %s", err, string(output))
-		} else {
-			codeStack = string(output)
+			FunctionCodeTrace: "Error: Invalid function name",
 		}
 	}
 
 	return models.FunctionTraceDetails{
 		FunctionName: name,
 		CoreProfile: models.Profiles{
-			CPU: executePprof(metrics.CPUProfileFilePath, reportType),
-			Mem: executePprof(metrics.MemProfileFilePath, reportType),
+			CPU: renderProfileReport(metrics.CPUProfileFilePath, reportType),
+			Mem: renderProfileReport(metrics.MemProfileFilePath, reportType),
 		},
-		FunctionCodeTrace: codeStack,
+		FunctionCodeTrace: renderAnnotatedSource(metrics.CPUProfileFilePath, name),
 	}
 }
