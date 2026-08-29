@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`WithOTelEndpoint` connected to the collector and never sent a metric.**
+  `Registry`, `Pipeline` and `MultiExporter` were each implemented and each
+  unit-tested, and nothing ever constructed them, so `OTelExporter.Export` was
+  unreachable from a running service. The exporter was created, logged as
+  `OTel exporter initialized`, and shut down again without being asked for
+  anything in between; because its instruments are registered lazily on the
+  first `Export`, its periodic reader collected an empty set forever. Measured
+  against a real OTLP receiver: **0 metrics before, 5 within 30s after**
+
 ## [1.6.0] - 2026-08-29
 
 ### Added

@@ -23,6 +23,7 @@ import (
 	"github.com/iyashjayesh/monigo/exporters"
 	"github.com/iyashjayesh/monigo/internal/alerting"
 	"github.com/iyashjayesh/monigo/internal/logger"
+	"github.com/iyashjayesh/monigo/internal/pipeline"
 	"github.com/iyashjayesh/monigo/models"
 	"github.com/iyashjayesh/monigo/timeseries"
 )
@@ -84,7 +85,8 @@ type Monigo struct {
 	AuthFunction        func(*http.Request) bool          `json:"-"`
 
 	// Holds a reference so we can shut down cleanly.
-	otelExporter *exporters.OTelExporter
+	otelExporter   *exporters.OTelExporter
+	exportPipeline *pipeline.Pipeline
 }
 
 // MonigoInt is the interface to start the monigo service
@@ -258,6 +260,10 @@ func (m *Monigo) setup() error {
 		}
 	}
 
+	// Without this the exporters above are constructed and never asked for
+	// anything -- see startExportPipeline.
+	m.startExportPipeline()
+
 	return nil
 }
 
@@ -265,6 +271,9 @@ func (m *Monigo) setup() error {
 func (m *Monigo) Shutdown(ctx context.Context) error {
 	var errs []error
 	runCleanups()
+	// Stop pushing before tearing down what we push into, so an in-flight
+	// export cannot race the provider shutdown.
+	m.stopExportPipeline()
 	if m.otelExporter != nil {
 		if err := m.otelExporter.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("otel shutdown: %w", err))
