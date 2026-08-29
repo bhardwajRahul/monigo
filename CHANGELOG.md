@@ -61,6 +61,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/service-info` exposes `retention_period`, `storage_type` and `storage_on_disk`. `storage_on_disk` is omitted for the in-memory backend, since reporting `0 B` there would read as "nothing stored" rather than "not applicable"
 - `common.GetRetentionPeriodString()` and `timeseries.GetStorageType()`
 ### Fixed
+- **Traced-function memory was measured wrong, and reported when it had not been
+  measured at all.** The delta came from `runtime.MemStats.Alloc`, which is bytes
+  currently *live*, so a collection during the call dropped it and the
+  difference went negative; that was guarded and otherwise reported as zero, so
+  a heavy allocator that triggered a GC recorded as allocating nothing. Using
+  `TotalAlloc`, which is cumulative, `main.highMemoryUsage` goes from a measured
+  0 to a measured 766.52 MB. Separately, profiling runs on one call in
+  `SamplingRate` (100 by default), so 99 calls in 100 had never been measured and
+  showed a confident `0`; `memory_usage_sampled` now distinguishes the two and
+  the dashboard renders an em dash for the unmeasured case
+- The goroutine delta clamped negatives to zero, so a call that let goroutines
+  finish looked identical to one that did nothing. It is also process-wide
+  rather than per-function -- any other goroutine starting or finishing during
+  the call moves it -- which is now stated at the type rather than implied away
+  by the column heading
+- The function detail panel labelled values "cumulative". Every `FunctionMetrics`
+  field is overwritten by each traced call, so they all describe the most recent
+  one
+- **Staleness no longer decides whether goroutines are leaking.** A listener
+  parked in netpoll and a signal handler waiting for SIGTERM are both
+  permanently blocked and both healthy, and every Go server has them, so a
+  staleness-driven verdict declared a leak on every process. The threshold had
+  been pushed to 24 hours to stop it firing, which removed the only signal it
+  carried. `LeakSuspected` now follows growth, which is what separates a leak
+  from a long wait; stale counts remain as context, and the threshold returns to
+  30 minutes
 - A function row could be opened but not closed. `hidden` works by applying
   `display: none` from the UA stylesheet, which loses to every author rule, so
   `display: flex` silently defeated it. The same rule made every unopened row
