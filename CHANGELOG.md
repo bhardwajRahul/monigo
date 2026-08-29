@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-function call counts and approximate latency percentiles.** `CALLS`,
+  `P50` and `P95` on the Functions table. The distribution comes from a
+  fixed-bucket histogram -- 216 bytes per function regardless of call volume,
+  against ~10 MB at the function cap for keeping raw samples -- so the values
+  are bucket upper bounds rather than interpolations, shown as `~4ms` meaning
+  "at most 4ms". Below 20 calls the columns read `—`: p95 of three calls is the
+  slowest of three, not a percentile
+
+### Fixed
+- **A window predating service start returned HTTP 500.** Both read endpoints
+  clamp the requested start up to the service start time, so a window *ending*
+  before startup became `start > end`, which the storage layer rejects. The
+  dashboard reads a failed series fetch as a lost connection, so asking for an
+  old range reported the service as having stopped answering
+- The two storage backends disagreed about an empty result: `tstorage` returned
+  an error where the in-memory backend returned an empty slice. Both now answer
+  `(nil, nil)`
+- **`pprof.StartCPUProfile`'s error was discarded.** CPU profiling is a
+  process-wide singleton, so a second traced call sampled concurrently got
+  "already in use", the error vanished, and the caller recorded a profile path
+  pointing at the zero-byte file `os.Create` had just truncated -- or at one the
+  other call was writing
+- The Reports range control offered a `5m` button its renderer had no entry for;
+  clicking it threw out of the handler and silently stopped the page. Its LIVE
+  pill was permanently green and wired to nothing
+- The runtime chart never refreshed while LIVE was on, and the "not enough
+  history" message hardcoded a 5m sync interval regardless of configuration
+- `tstorage` data from a test run was committed to the repo, so running the
+  suite modified a tracked file and left the working tree dirty
+
 ### Known gaps
 Two things the design canvas shows that the dashboard deliberately does not,
 because the data behind them does not exist yet. Both are tracked rather than
