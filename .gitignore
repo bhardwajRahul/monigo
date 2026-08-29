@@ -38,3 +38,9 @@ MoniGo Dashboard*.html
 # copy lives under static/.
 mocksup_static/
 new_static_mockups/
+
+# tstorage's on-disk data. Tests and the examples create a `monigo/` directory
+# wherever they run; four files from one of those runs were committed by
+# accident, so every test run rewrote a tracked meta.json and left the working
+# tree dirty.
+monigo/

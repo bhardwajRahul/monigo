@@ -287,6 +287,12 @@ body.mg a:hover { text-decoration: underline; }
 }
 .mg-nav svg { width: 15px; height: 15px; flex: none; }
 .mg-badge { margin-left: auto; font: 500 10px var(--mono); color: var(--dim2); }
+
+/* On the active item the badge sits on the accent tint rather than the panel,
+   where --dim2 measures 4.43:1 -- under the floor for 10px text. The item's
+   label is already --acc and clears it there, so the badge inherits that
+   instead of carrying a second tone on the same background. */
+.mg-nav a.is-active .mg-badge { color: inherit; }
 .mg-badge:empty { display: none; }
 
 .mg-rail__foot {

@@ -125,7 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
         range: '15m',
         timer: null,
         lastGood: null,
-        syncFrequency: '5m',
+        // Replaced from /service-info. Hardcoding it told any service
+        // configured with something other than 5m a false number in the
+        // "not enough history yet" message.
+        syncFrequency: '',
     };
 
     // -------------------------------------------------------------- health
@@ -466,6 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(([m, info]) => {
                 renderHealth(m);
                 renderKPIs(m);
+                maybeRefreshSeries();
                 renderHeap(m);
                 renderReadouts(m, info);
             })
@@ -534,9 +538,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ------------------------------------------------------ history series
 
-    const RANGE_MINUTES = { '5m': 5, '15m': 15, '1h': 60, '24h': 1440 };
+    // Must match the buttons in index.html. A key with no button is dead
+    // config; a button with no key threw a RangeError out of the click handler
+    // and silently stopped the page, which is what happened on Reports.
+    const RANGE_MINUTES = { '15m': 15, '1h': 60, '24h': 1440 };
+
+    /*
+     * The stored series is refreshed on its own cadence, not on every poll.
+     *
+     * The LIVE pill claimed the whole page was live while this chart only
+     * reloaded on page load and on a range change -- so it could sit unchanged
+     * for as long as the tab stayed open. But storage is only written every
+     * DataPointsSyncFrequency (5m by default), so re-fetching every 15s would
+     * return the same points ~20 times over. Once a minute is often enough to
+     * pick up a new sample promptly and rare enough not to hammer the store.
+     */
+    const SERIES_REFRESH_MS = 60000;
+    let lastSeriesLoad = 0;
+
+    function maybeRefreshSeries() {
+        const now = Date.now();
+        if (now - lastSeriesLoad < SERIES_REFRESH_MS) {
+            return;
+        }
+        lastSeriesLoad = now;
+        loadSeries();
+    }
 
     function loadSeries() {
+        lastSeriesLoad = Date.now();
         const mins = RANGE_MINUTES[state.range] || 15;
         const end = new Date();
         const start = new Date(end.getTime() - mins * 60000);
@@ -640,12 +670,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     have === 0
                         ? 'No samples stored yet. '
                         : `${have} of 2 samples so far. `));
-                const b = document.createElement('b');
-                b.textContent = state.syncFrequency;
-                short.appendChild(document.createTextNode('One is written every '));
-                short.appendChild(b);
-                short.appendChild(document.createTextNode(
-                    ', so a line appears once there are two.'));
+                if (state.syncFrequency) {
+                    const b = document.createElement('b');
+                    b.textContent = state.syncFrequency;
+                    short.appendChild(document.createTextNode('One is written every '));
+                    short.appendChild(b);
+                    short.appendChild(document.createTextNode(
+                        ', so a line appears once there are two.'));
+                } else {
+                    short.appendChild(document.createTextNode(
+                        'A line appears once there are two.'));
+                }
             }
             // The grid still draws, so the card reads as a chart waiting for
             // data rather than as an empty box.
@@ -975,6 +1010,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!info) {
                     return;
                 }
+                // The interval the empty-state message quotes. Absent means
+                // the server did not report one, so the message omits it
+                // rather than inventing a default.
+                state.syncFrequency = info.data_points_sync_frequency || '';
+
                 set('mg-service-name', info.service_name || '—');
                 set('mg-page-subtitle', info.service_name
                     ? 'runtime · ' + info.service_name

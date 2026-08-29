@@ -232,6 +232,7 @@ func (m *Monigo) setup() error {
 		m.GoVersion,
 		m.ProcessId,
 		m.DataRetentionPeriod,
+		m.DataPointsSyncFrequency,
 	)
 
 	if m.SamplingRate > 0 {

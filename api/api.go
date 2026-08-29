@@ -9,6 +9,7 @@ import (
 
 	"github.com/iyashjayesh/monigo/common"
 	"github.com/iyashjayesh/monigo/core"
+	"github.com/iyashjayesh/monigo/internal/logger"
 	"github.com/iyashjayesh/monigo/models"
 	"github.com/iyashjayesh/monigo/timeseries"
 )
@@ -120,6 +121,25 @@ func GetServiceMetricsFromStorage(w http.ResponseWriter, r *http.Request) {
 		startTime = serviceStartTime
 	}
 
+	/*
+	 * A window that ends before the service started contains no data by
+	 * definition, and clamping the start up to the service start time inverts
+	 * it -- start now sits after end. tstorage rejects that with "the given
+	 * start is greater than end", which this handler turned into HTTP 500.
+	 *
+	 * The dashboard reads a failed series fetch as a lost connection, so asking
+	 * for a range older than the process reported the service as having stopped
+	 * answering. An empty result is the truthful answer, and the front end
+	 * already has a state for it.
+	 */
+	if !startTime.Before(endTime) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode([]models.DataPointsInfo{}); err != nil {
+			logger.Log.Error("encoding empty series response", "error", err)
+		}
+		return
+	}
+
 	hostLabel := timeseries.GetHostLabel()
 
 	dataByTimestamp := make(map[int64]map[string]float64)
@@ -208,6 +228,23 @@ func GetReportData(w http.ResponseWriter, r *http.Request) {
 		fieldNameList = []string{"service_health_percent", "system_health_percent"}
 	default:
 		http.Error(w, "Unknown topic", http.StatusBadRequest)
+		return
+	}
+
+	/*
+	 * Same inversion as /service-metrics: a window ending before the service
+	 * started becomes start > end once clamped, which the storage layer rejects
+	 * as an error rather than as the empty result it really is.
+	 *
+	 * This sits *after* the topic switch on purpose. Placing it earlier made an
+	 * unknown topic answer 200 with an empty array instead of 400 -- a bad
+	 * request silently reported as a valid empty one.
+	 */
+	if !startTime.Before(endTime) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode([]models.DataPointsInfo{}); err != nil {
+			logger.Log.Error("encoding empty report response", "error", err)
+		}
 		return
 	}
 

@@ -29,12 +29,22 @@ every call, not one percent of them.
 */
 
 const (
-	// histogramBuckets spans 1µs to ~17s in powers of four, which brackets
-	// everything from a tight loop to a call that should have timed out.
-	// Powers of four rather than two keeps the array short at the cost of
-	// coarser resolution; at p95 the bucket edges matter less than the
-	// magnitude.
-	histogramBuckets = 13
+	/*
+	 * Buckets span 1µs to ~17s in powers of two: a tight loop through to a
+	 * call that should have timed out.
+	 *
+	 * Powers of two, not four. Four halves the array but makes each bucket 4x
+	 * wide, and measuring the example app showed why that is too coarse:
+	 * highCPUUsage (~25ms) and highMemoryUsage (~35ms) both landed in the
+	 * 16ms-65ms bucket and reported an identical p95 of 65.54ms. A column that
+	 * cannot separate a 30ms function from a 60ms one does not answer the
+	 * question it exists for.
+	 *
+	 * The cost of the finer grid is 216 bytes per function instead of 120 --
+	 * 2.2 MB rather than 1.2 MB at the 10 000 function cap, against 10.3 MB
+	 * for keeping raw samples.
+	 */
+	histogramBuckets = 26
 
 	// histogramBase is the upper bound of the first bucket.
 	histogramBase = time.Microsecond
@@ -53,7 +63,7 @@ var bucketUpperBounds = func() [histogramBuckets]time.Duration {
 	d := histogramBase
 	for i := 0; i < histogramBuckets; i++ {
 		b[i] = d
-		d *= 4
+		d *= 2
 	}
 	b[histogramBuckets-1] = time.Duration(math.MaxInt64)
 	return b

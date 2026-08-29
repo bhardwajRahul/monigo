@@ -19,6 +19,12 @@ type ServiceInfo struct {
 	StorageType     string `json:"storage_type,omitempty"`
 	StorageOnDisk   string `json:"storage_on_disk,omitempty"`
 
+	// DataPointsSyncFrequency is how often metrics are written to storage.
+	// The dashboard quotes it when explaining why a chart has too little
+	// history; without it the front end hardcoded "5m" and told a service
+	// configured with anything else a false number.
+	DataPointsSyncFrequency string `json:"data_points_sync_frequency,omitempty"`
+
 	// MonigoVersion is the version of this library compiled into the binary,
 	// read from build info. Omitted when it is not knowable -- a local checkout
 	// or a replace directive -- so the dashboard can hide the badge rather than

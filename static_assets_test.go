@@ -765,3 +765,63 @@ func TestHiddenAttributeIsNotDefeatedByADisplayRule(t *testing.T) {
 		}
 	}
 }
+
+// A range button with no entry in the renderer's table threw a RangeError out
+// of the click handler and stopped the page dead; an entry with no button was
+// config nothing could reach. Both shipped at once on the Reports page after a
+// shell rebuild handed it another page's buttons.
+func TestRangeButtonsMatchTheirRenderer(t *testing.T) {
+	buttonPattern := regexp.MustCompile(`data-range="([^"]+)"`)
+	tablePattern := regexp.MustCompile(`RANGE_MINUTES\s*=\s*\{([^}]*)\}`)
+	keyPattern := regexp.MustCompile(`'([^']+)'\s*:`)
+
+	// Which script drives which page, so the right table is compared.
+	pages := map[string]string{
+		"static/index.html":   "static/js/overview.js",
+		"static/reports.html": "static/js/reports-view.js",
+	}
+
+	for page, script := range pages {
+		pb, err := staticFiles.ReadFile(page)
+		if err != nil {
+			t.Fatalf("reading %s: %v", page, err)
+		}
+		html := stripComments(string(pb), path.Ext(page))
+
+		buttons := map[string]bool{}
+		for _, m := range buttonPattern.FindAllStringSubmatch(html, -1) {
+			buttons[m[1]] = true
+		}
+		if len(buttons) == 0 {
+			continue // no range control on this page
+		}
+
+		sb, err := staticFiles.ReadFile(script)
+		if err != nil {
+			t.Fatalf("reading %s: %v", script, err)
+		}
+		table := tablePattern.FindStringSubmatch(string(sb))
+		if table == nil {
+			t.Errorf("%s has range buttons but %s defines no RANGE_MINUTES", page, script)
+			continue
+		}
+		keys := map[string]bool{}
+		for _, m := range keyPattern.FindAllStringSubmatch(table[1], -1) {
+			keys[m[1]] = true
+		}
+
+		for b := range buttons {
+			if !keys[b] {
+				t.Errorf("%s offers a %q range button that %s has no entry for.\n"+
+					"Clicking it yields an Invalid Date and throws out of the "+
+					"handler, so the page stops with no error shown.", page, b, script)
+			}
+		}
+		for k := range keys {
+			if !buttons[k] {
+				t.Errorf("%s defines range %q that %s gives no button for -- "+
+					"unreachable config.", script, k, page)
+			}
+		}
+	}
+}

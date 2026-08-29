@@ -157,7 +157,7 @@ func TestGetBasePath(t *testing.T) {
 }
 
 func TestGetDataRetentionPeriod(t *testing.T) {
-	SetServiceInfo("test", time.Now(), "go1.24", 1, "7d")
+	SetServiceInfo("test", time.Now(), "go1.24", 1, "7d", "5m")
 	d := GetDataRetentionPeriod()
 	if d != 7*24*time.Hour {
 		t.Errorf("expected 7 days, got %v", d)
