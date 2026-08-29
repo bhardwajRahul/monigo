@@ -56,6 +56,7 @@ func startExportPipelineWith(exps []exporter.Exporter, serviceName string, inter
 
 	reg := registry.NewRegistry()
 	multi := exporter.NewMultiExporter(exps...)
+	exporter.SetActive(multi)
 	p := pipeline.NewPipeline(reg, multi, interval).
 		WithCollector(func() { publishRuntimeMetrics(reg, serviceName) })
 
@@ -89,6 +90,7 @@ func (m *Monigo) stopExportPipeline() {
 	if m.exportPipeline != nil {
 		m.exportPipeline.Stop()
 		m.exportPipeline = nil
+		exporter.SetActive(nil)
 	}
 }
 

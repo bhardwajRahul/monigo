@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MoniGo — Reports</title>
+    <title>MoniGo — Exporters</title>
     <link rel="icon" href="./assets/favicon.ico">
     <link rel="stylesheet" href="./css/monigo-design.css">
     <link rel="stylesheet" href="./css/monigo-styles.css">
@@ -60,11 +60,11 @@
         <span>Goroutines</span>
         <span class="mg-badge" id="mg-count-goroutines"></span>
       </a>
-      <a href="./reports.html" class="is-active">
+      <a href="./reports.html">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3.2 2.2h6l3.6 3.6v8a.6.6 0 0 1-.6.6H3.2a.6.6 0 0 1-.6-.6V2.8a.6.6 0 0 1 .6-.6z"></path><path d="M9 2.4V6h3.6M5.2 9.4h5.6M5.2 11.6h3.4"></path></svg>
         <span>Reports</span>
       </a>
-      <a href="./exporters.html">
+      <a href="./exporters.html" class="is-active">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 1.8v5.4M8 7.2 4.4 9.6M8 7.2l3.6 2.4"></path><circle cx="8" cy="1.8" r="1.3"></circle><circle cx="4.4" cy="10.4" r="1.3"></circle><circle cx="11.6" cy="10.4" r="1.3"></circle><path d="M2.4 13.6h11.2"></path></svg>
         <span>Exporters</span>
       </a>
@@ -85,27 +85,9 @@
               aria-label="Toggle navigation" aria-expanded="false">
         <svg class="mg-icon" aria-hidden="true"><use href="#i-menu"></use></svg>
       </button>
-      <span class="mg-top__title">Reports</span>
+      <span class="mg-top__title">Exporters</span>
       <span class="mg-top__sub" id="mg-asof"></span>
       <div class="mg-top__right">
-    <!-- These must match RANGE_MINUTES in reports-view.js. They did not: the
-         shell rebuild gave this page the Overview's group, leaving a 5m button
-         the JS had no entry for -- clicking it produced an Invalid Date and
-         threw a RangeError out of the handler, so the page silently stopped --
-         and a 6h entry with no button. No 5m: at the default 5m sync interval
-         that window can never hold two samples. -->
-    <div class="mg-range" id="mg-range" role="group" aria-label="Report window">
-      <button type="button" class="mg-range-seg" data-range="15m" aria-pressed="false">15m</button>
-      <button type="button" class="mg-range-seg is-active" data-range="1h" aria-pressed="true">1h</button>
-      <button type="button" class="mg-range-seg" data-range="6h" aria-pressed="false">6h</button>
-      <button type="button" class="mg-range-seg" data-range="24h" aria-pressed="false">24h</button>
-    </div>
-        <!-- No LIVE control. A report answers a question about a window you
-             chose; re-fetching every fifteen seconds would move the ground
-             under whoever is reading it. The pill that sat here was
-             permanently green and wired to nothing, asserting a freshness the
-             page never had. The as-of stamp says when it was actually
-             fetched. -->
         <button type="button" class="mg-iconbtn" id="mg-theme-toggle" title="Toggle theme"
                 aria-label="Toggle theme">
           <svg class="mg-icon" aria-hidden="true"><use href="#i-moon" id="mg-theme-icon"></use></svg>
@@ -124,59 +106,19 @@
     <main class="mg-content" id="mg-content">
       <div class="mg-stack">
 
+  <!-- Prometheus is always listed: its collector is registered at package init,
+       so the scrape endpoint exists whether or not anything scrapes it. Push
+       exporters appear only once configured. -->
+  <section class="mg-exp-grid" id="mg-exp-grid"></section>
+  <p class="mg-fn-empty" id="mg-exp-empty" hidden></p>
 
-  <!-- Window / topic / export. RESOLUTION and Generate PDF are omitted:
-       storage has no downsampling, and there is no PDF renderer that would
-       work on an airgapped host. -->
-  <div class="mg-card mg-rep-toolbar">
-    <div class="mg-rep-fact">
-      <span class="mg-eyebrow">WINDOW</span>
-      <span class="mg-rep-value" id="mg-rep-window">—</span>
-    </div>
-    <div class="mg-rep-sep" aria-hidden="true"></div>
-    <label class="mg-rep-fact">
-      <span class="mg-eyebrow">TOPIC</span>
-      <select id="mg-rep-topic" class="mg-fn-select" aria-label="Report topic">
-        <option value="LoadStatistics">Load statistics</option>
-        <option value="CPUStatistics">CPU statistics</option>
-        <option value="MemoryStatistics">Memory statistics</option>
-        <option value="MemoryProfile">Memory profile</option>
-        <option value="NetworkIO">Network I/O</option>
-        <option value="OverallHealth">Overall health</option>
-      </select>
-    </label>
-    <div class="mg-rep-sep" aria-hidden="true"></div>
-    <div class="mg-rep-fact">
-      <span class="mg-eyebrow">SAMPLES</span>
-      <span class="mg-rep-value" id="mg-rep-samples">—</span>
-    </div>
-    <div class="mg-rep-actions">
-      <button type="button" class="mg-fn-export" id="mg-rep-json">JSON</button>
-      <button type="button" class="mg-fn-export" id="mg-rep-csv">CSV</button>
-    </div>
-  </div>
-
-  <section class="mg-rep-grid" id="mg-rep-grid"></section>
-  <p class="mg-fn-empty" id="mg-rep-empty" hidden></p>
-
-  <template id="mg-rep-card-tpl">
-    <article class="mg-card mg-rep-card">
-      <span class="mg-rep-title"></span>
-      <svg class="mg-rep-spark" viewBox="0 0 280 90" preserveAspectRatio="none"
-           role="img" aria-hidden="true">
-        <path class="mg-rep-area"></path>
-        <path class="mg-rep-line"></path>
-      </svg>
-      <span class="mg-rep-stats"></span>
-    </article>
-  </template>
       </div>
     </main>
   </div>
 </div>
 
     <script src="./js/common.js" defer></script>
-    <script src="./js/reports-view.js" defer></script>
+    <script src="./js/exporters-view.js" defer></script>
 </body>
 
 </html>

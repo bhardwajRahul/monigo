@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Exporters page.** Prometheus and OTel status, at
+  `GET /monigo/api/v1/exporters` and in the dashboard nav. Push and pull are
+  reported in their own terms rather than flattened into one pass/fail:
+  Prometheus scrapes MoniGo, so it shows when it was last scraped and carries
+  no failure count -- a scrape that fails, fails at the collector and the
+  server never learns of it -- while a push exporter shows last attempt, last
+  success, consecutive failures and the transport error verbatim
+
 ### Fixed
+- **The OTel exporter reported success against an unreachable collector.**
+  `Export` only stored values; the SDK's reader shipped them later on its own
+  clock, so the error never reached the caller and the dashboard would have
+  read "ok" while nothing arrived. Export now flushes and returns the
+  transport's verdict, leaving one clock instead of two
 - **`WithOTelEndpoint` connected to the collector and never sent a metric.**
   `Registry`, `Pipeline` and `MultiExporter` were each implemented and each
   unit-tested, and nothing ever constructed them, so `OTelExporter.Export` was

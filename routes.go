@@ -47,6 +47,7 @@ func apiRoutes() []apiRoute {
 		{"/function", api.GetFunctionTraceDetails},
 		{"/function-details", api.ViewFunctionMetrics},
 		{"/reports", api.GetReportData},
+		{"/exporters", api.GetExportersStatus},
 	}
 }
 
