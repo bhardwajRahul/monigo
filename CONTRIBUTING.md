@@ -60,23 +60,58 @@ several releases' worth of work sat unreachable.
 So: **tag `v1.x.y`, and verify the proxy actually served it.** The second half is
 the step whose absence caused the problem.
 
-```bash
-# 1. CHANGELOG.md: move [Unreleased] entries under a dated version heading
-# 2. tag and push
-git tag -a v1.3.0 -m "v1.3.0"
-git push origin v1.3.0
+**Step 1 is a pull request, not a command.** It is written out below rather than
+as a comment in a shell block, because a comment in a shell block is what gets
+skipped -- paste the block and the only thing that runs is the tag.
 
-# 3. VERIFY -- this is not optional
+### 1. Stamp the changelog (pull request)
+
+In `CHANGELOG.md`, move everything under `## [Unreleased]` beneath a new dated
+heading, and leave `## [Unreleased]` in place, empty, above it:
+
+```markdown
+## [Unreleased]
+
+## [1.8.0] - 2026-08-30
+
+### Fixed
+- ...
+```
+
+Open it as a pull request and merge it. This is the step where someone reads
+what actually shipped and says it clearly -- worth a review, and deliberately
+not automated.
+
+It also has to land **before** the tag. Stamping afterwards leaves the tag
+pointing at a tree whose changelog is missing its own entry, which is what
+`go get` then serves.
+
+### 2. Tag and push
+
+```bash
+git tag -a v1.8.0 -m "v1.8.0"
+git push origin v1.8.0
+```
+
+CI takes it from here. The `Release` workflow checks that the tag matches the
+newest stamped section in `CHANGELOG.md` and **fails the run if it does not**,
+then publishes the GitHub release using that section as the notes. If you skip
+step 1, this is where you find out -- rather than shipping an empty release.
+
+### 3. Verify the proxy served it -- not optional
+
+```bash
 curl -s https://proxy.golang.org/github.com/iyashjayesh/monigo/@latest
 # must report the version just tagged
 
-# 4. confirm it installs from a clean module
 cd "$(mktemp -d)" && go mod init tmp >/dev/null
 go get github.com/iyashjayesh/monigo@latest && go list -m github.com/iyashjayesh/monigo
 ```
 
-If step 3 does not show the new version, the tag is not usable and the release has
-not actually happened, however green the CI run was.
+This is the half CI cannot do for you: the module proxy is outside the
+repository. If this does not show the new version, the tag is not usable and the
+release has not actually happened, however green the CI run was -- which is
+exactly how `v2.0.0` went unnoticed.
 
 Moving to a v2 line later means renaming the module to
 `github.com/iyashjayesh/monigo/v2` in `go.mod` and updating every import path in
