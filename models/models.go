@@ -70,4 +70,16 @@ type HealthFields struct {
 	Percentage    float64 `json:"percentage"`
 	AllowedByUser float64 `json:"allowed_by_user"`
 	Message       string  `json:"message"`
+
+	/*
+	 * Breached reports whether a configured limit was actually exceeded.
+	 *
+	 * It is the same condition that decides whether Message reads "within
+	 * limits" or "exceeds allowed limits", carried out rather than left to be
+	 * re-derived. The verdict used to come from Percentage > 50, a composite
+	 * score, which could disagree with the message printed beside it -- the
+	 * dashboard showed "Degraded" next to the words "System usage is within
+	 * limits", and flapped as the score drifted across 50.
+	 */
+	Breached bool `json:"breached"`
 }

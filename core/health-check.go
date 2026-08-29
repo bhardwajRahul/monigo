@@ -36,10 +36,10 @@ func calculateMemoryUsagePercentage(usedMemory, totalMemory string) (float64, er
 }
 
 // calculateServiceHealth calculates service health based on CPU, memory, and goroutines
-func calculateServiceHealth(stats *models.ServiceStats) (float64, string, error) {
+func calculateServiceHealth(stats *models.ServiceStats) (float64, string, bool, error) {
 	cpuUsage, err := getServiceCPUUsage()
 	if err != nil {
-		return 0, "", fmt.Errorf("failed to get service CPU usage: %w", err)
+		return 0, "", false, fmt.Errorf("failed to get service CPU usage: %w", err)
 	}
 
 	totalAvailableCores := stats.CPUStatistics.TotalCores
@@ -51,7 +51,7 @@ func calculateServiceHealth(stats *models.ServiceStats) (float64, string, error)
 		stats.MemoryStatistics.TotalSystemMemory,
 	)
 	if err != nil {
-		return 0, "", fmt.Errorf("failed to calculate memory usage percentage: %w", err)
+		return 0, "", false, fmt.Errorf("failed to calculate memory usage percentage: %w", err)
 	}
 
 	// Calculating the health ratios for CPU, memory, and goroutines
@@ -63,7 +63,18 @@ func calculateServiceHealth(stats *models.ServiceStats) (float64, string, error)
 
 	var healthScore float64
 	var message string
-	if finalScore > 100 {
+	/*
+	 * A limit is breached when ANY single resource is over its own limit --
+	 * not when the average of them is.
+	 *
+	 * finalScore averages the three ratios, so an idle resource cancels out a
+	 * saturated one: memory at 104% of its allowance alongside CPU at 12%
+	 * averages to 58 and reported "within limits" while memory was over.
+	 * Averaging is right for a graded score, and wrong for "has something
+	 * broken".
+	 */
+	breached := cpuUsageRatio > 100 || memoryUsageRatio > 100 || goRoutinesRatio > 100
+	if breached {
 		healthScore = 0
 		message = fmt.Sprintf(
 			"Service usage exceeds allowed limits: CPU Usage %.2f%% / %.2f%%, Memory Usage %.2f%% / %.2f%%, Goroutines %.2f / %d",
@@ -81,23 +92,23 @@ func calculateServiceHealth(stats *models.ServiceStats) (float64, string, error)
 		)
 	}
 
-	return healthScore, message, nil
+	return healthScore, message, breached, nil
 }
 
 // calculateSystemHealth calculates system health based on CPU and memory
-func calculateSystemHealth(stats *models.ServiceStats) (float64, string, error) {
+func calculateSystemHealth(stats *models.ServiceStats) (float64, string, bool, error) {
 
 	// Calculating cpu & memory usage percentage for the system
 	cpuUsagePercentage, err := GetCPUPrecent()
 	if err != nil {
-		return 0, "", fmt.Errorf("failed to get CPU percent: %w", err)
+		return 0, "", false, fmt.Errorf("failed to get CPU percent: %w", err)
 	}
 	memoryUsagePercentage, err := calculateMemoryUsagePercentage(
 		stats.MemoryStatistics.MemoryUsedBySystem,
 		stats.MemoryStatistics.TotalSystemMemory,
 	)
 	if err != nil {
-		return 0, "", fmt.Errorf("failed to calculate memory usage percentage: %w", err)
+		return 0, "", false, fmt.Errorf("failed to calculate memory usage percentage: %w", err)
 	}
 
 	t := GetThresholds()
@@ -107,7 +118,10 @@ func calculateSystemHealth(stats *models.ServiceStats) (float64, string, error) 
 
 	var healthScore float64
 	var message string
-	if finalScore > 100 {
+	// Breached when either resource is individually over its limit; see
+	// calculateServiceHealth for why the average will not do.
+	breached := cpuUsageRatio > 100 || memoryUsageRatio > 100
+	if breached {
 		healthScore = 0
 		message = fmt.Sprintf(
 			"System usage exceeds allowed limits: CPU Usage %.2f%% / %.2f%%, Memory Usage %.2f%% / %.2f%%",
@@ -123,19 +137,19 @@ func calculateSystemHealth(stats *models.ServiceStats) (float64, string, error) 
 		)
 	}
 
-	return healthScore, message, nil
+	return healthScore, message, breached, nil
 }
 
 // CalculateHealthScore calculates the health score of both the system and service
 func CalculateHealthScore(serviceStats *models.ServiceStats) (*models.SystemHealthInPercent, error) {
 	// Calculating system health
-	systemScore, systemMsg, err := calculateSystemHealth(serviceStats)
+	systemScore, systemMsg, systemBreached, err := calculateSystemHealth(serviceStats)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate system health: %w", err)
 	}
 
 	// Calculating service health
-	serviceScore, serviceMsg, err := calculateServiceHealth(serviceStats)
+	serviceScore, serviceMsg, serviceBreached, err := calculateServiceHealth(serviceStats)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate service health: %w", err)
 	}
@@ -154,11 +168,13 @@ func CalculateHealthScore(serviceStats *models.ServiceStats) (*models.SystemHeal
 			Percentage:    common.RoundFloat64(systemScore, 2),
 			AllowedByUser: t.MaxCPUUsage,
 			Message:       systemMsg,
+			Breached:      systemBreached,
 		},
 		ServiceHealth: models.HealthFields{
 			Percentage:    common.RoundFloat64(serviceScore, 2),
 			AllowedByUser: t.MaxCPUUsage,
 			Message:       serviceMsg,
+			Breached:      serviceBreached,
 		},
 	}, nil
 }

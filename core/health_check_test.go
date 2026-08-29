@@ -52,7 +52,7 @@ func TestCalculateServiceHealthScoresZeroOnBreach(t *testing.T) {
 		MaxMemoryUsage: 0.0001,
 		MaxGoRoutines:  1,
 	}, func() {
-		score, msg, err := calculateServiceHealth(breachStats())
+		score, msg, _, err := calculateServiceHealth(breachStats())
 		if err != nil {
 			t.Fatalf("calculateServiceHealth returned error: %v", err)
 		}
@@ -72,11 +72,11 @@ func TestServiceAndSystemHealthAgreeOnBreach(t *testing.T) {
 		MaxMemoryUsage: 0.0001,
 		MaxGoRoutines:  1,
 	}, func() {
-		serviceScore, _, err := calculateServiceHealth(breachStats())
+		serviceScore, _, _, err := calculateServiceHealth(breachStats())
 		if err != nil {
 			t.Fatalf("calculateServiceHealth returned error: %v", err)
 		}
-		systemScore, _, err := calculateSystemHealth(breachStats())
+		systemScore, _, _, err := calculateSystemHealth(breachStats())
 		if err != nil {
 			t.Fatalf("calculateSystemHealth returned error: %v", err)
 		}
@@ -93,7 +93,7 @@ func TestCalculateServiceHealthWithinLimits(t *testing.T) {
 		MaxMemoryUsage: 100,
 		MaxGoRoutines:  1000000,
 	}, func() {
-		score, msg, err := calculateServiceHealth(healthyStats())
+		score, msg, _, err := calculateServiceHealth(healthyStats())
 		if err != nil {
 			t.Fatalf("calculateServiceHealth returned error: %v", err)
 		}
