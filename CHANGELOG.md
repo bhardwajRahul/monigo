@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`GET /metrics` answered HTTP 500 under `RegisterDashboardHandlers` and 404
+  under Fiber**, while the same path answered 200 under `RegisterAPIHandlers`.
+  The Prometheus endpoint is served at the root rather than beneath the API
+  base path, and the unified handlers dispatched to the API only on that
+  prefix, so the scrape endpoint fell through to the static file server. Any
+  consumer mounting the dashboard through `RegisterDashboardHandlers` or
+  `RegisterSecuredDashboardHandlers` -- or through Fiber -- had Prometheus
+  marking the target down
+- The API surface was declared separately in five registration sites, which is
+  how the above drifted. `routes.go` now declares it once and all five derive
+  from it, and a test drives every route through every registration style
+
 ### Added
 - **Per-function call counts and approximate latency percentiles.** `CALLS`,
   `P50` and `P95` on the Functions table. The distribution comes from a

@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/iyashjayesh/monigo/api"
 	"github.com/iyashjayesh/monigo/common"
 	"github.com/iyashjayesh/monigo/core"
 	"github.com/iyashjayesh/monigo/exporters"
@@ -426,14 +425,9 @@ func (m *Monigo) registerShutdownHandler(srv *http.Server) {
 
 // registerAPIEndpoints registers the standard API endpoints on the mux.
 func registerAPIEndpoints(mux *http.ServeMux, apiPath string) {
-	mux.HandleFunc(fmt.Sprintf("%s/metrics", apiPath), api.GetServiceStatistics)
-	mux.HandleFunc(fmt.Sprintf("%s/service-info", apiPath), api.GetServiceInfoAPI)
-	mux.HandleFunc(fmt.Sprintf("%s/service-metrics", apiPath), api.GetServiceMetricsFromStorage)
-	mux.HandleFunc(fmt.Sprintf("%s/go-routines-stats", apiPath), api.GetGoRoutinesStats)
-	mux.HandleFunc(fmt.Sprintf("%s/function", apiPath), api.GetFunctionTraceDetails)
-	mux.HandleFunc(fmt.Sprintf("%s/function-details", apiPath), api.ViewFunctionMetrics)
-	mux.HandleFunc("/metrics", api.PrometheusMetricsHandler)
-	mux.HandleFunc(fmt.Sprintf("%s/reports", apiPath), api.GetReportData)
+	for path, handler := range apiHandlerMap(apiPath) {
+		mux.HandleFunc(path, handler)
+	}
 }
 
 // RegisterDashboardHandlers registers all dashboard handlers to the provided HTTP mux
@@ -483,16 +477,7 @@ func GetAPIHandlers(customBaseAPIPath ...string) map[string]http.HandlerFunc {
 		apiPath = customBaseAPIPath[0]
 	}
 
-	return map[string]http.HandlerFunc{
-		fmt.Sprintf("%s/metrics", apiPath):           api.GetServiceStatistics,
-		fmt.Sprintf("%s/service-info", apiPath):      api.GetServiceInfoAPI,
-		fmt.Sprintf("%s/service-metrics", apiPath):   api.GetServiceMetricsFromStorage,
-		fmt.Sprintf("%s/go-routines-stats", apiPath): api.GetGoRoutinesStats,
-		fmt.Sprintf("%s/function", apiPath):          api.GetFunctionTraceDetails,
-		fmt.Sprintf("%s/function-details", apiPath):  api.ViewFunctionMetrics,
-		"/metrics":                         api.PrometheusMetricsHandler,
-		fmt.Sprintf("%s/reports", apiPath): api.GetReportData,
-	}
+	return apiHandlerMap(apiPath)
 }
 
 // GetStaticHandler returns the static file handler function
@@ -508,7 +493,7 @@ func GetUnifiedHandler(customBaseAPIPath ...string) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, apiPath) {
+		if isAPIPath(r.URL.Path, apiPath) {
 			routeToAPIHandler(w, r, apiPath)
 			return
 		}
@@ -525,7 +510,7 @@ func GetFiberHandler(customBaseAPIPath ...string) func(*fiber.Ctx) error {
 
 	return func(c *fiber.Ctx) error {
 		path := string(c.Request().URI().Path())
-		if strings.HasPrefix(path, apiPath) {
+		if isAPIPath(path, apiPath) {
 			return routeToFiberAPIHandler(c, path, apiPath)
 		}
 		return serveFiberStaticFiles(c, path)
@@ -540,7 +525,7 @@ func GetSecuredUnifiedHandler(m *Monigo, customBaseAPIPath ...string) http.Handl
 	}
 
 	baseHandler := func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, apiPath) {
+		if isAPIPath(r.URL.Path, apiPath) {
 			routeToAPIHandler(w, r, apiPath)
 			return
 		}
@@ -557,18 +542,9 @@ func GetSecuredAPIHandlers(m *Monigo, customBaseAPIPath ...string) map[string]ht
 		apiPath = customBaseAPIPath[0]
 	}
 
-	baseHandlers := map[string]http.HandlerFunc{
-		fmt.Sprintf("%s/metrics", apiPath):           api.GetServiceStatistics,
-		fmt.Sprintf("%s/service-info", apiPath):      api.GetServiceInfoAPI,
-		fmt.Sprintf("%s/service-metrics", apiPath):   api.GetServiceMetricsFromStorage,
-		fmt.Sprintf("%s/go-routines-stats", apiPath): api.GetGoRoutinesStats,
-		fmt.Sprintf("%s/function", apiPath):          api.GetFunctionTraceDetails,
-		fmt.Sprintf("%s/function-details", apiPath):  api.ViewFunctionMetrics,
-		"/metrics":                         api.PrometheusMetricsHandler,
-		fmt.Sprintf("%s/reports", apiPath): api.GetReportData,
-	}
+	baseHandlers := apiHandlerMap(apiPath)
 
-	securedHandlers := make(map[string]http.HandlerFunc)
+	securedHandlers := make(map[string]http.HandlerFunc, len(baseHandlers))
 	for path, handler := range baseHandlers {
 		securedHandlers[path] = applyMiddlewareChain(handler, m.APIMiddleware, nil)
 	}
@@ -608,48 +584,19 @@ func applyMiddlewareChain(handler http.HandlerFunc, middleware []func(http.Handl
 }
 
 func routeToAPIHandler(w http.ResponseWriter, r *http.Request, apiPath string) {
-	path := r.URL.Path
-
-	switch {
-	case path == fmt.Sprintf("%s/metrics", apiPath):
-		api.GetServiceStatistics(w, r)
-	case path == fmt.Sprintf("%s/service-info", apiPath):
-		api.GetServiceInfoAPI(w, r)
-	case path == fmt.Sprintf("%s/service-metrics", apiPath):
-		api.GetServiceMetricsFromStorage(w, r)
-	case path == fmt.Sprintf("%s/go-routines-stats", apiPath):
-		api.GetGoRoutinesStats(w, r)
-	case path == fmt.Sprintf("%s/function", apiPath):
-		api.GetFunctionTraceDetails(w, r)
-	case path == fmt.Sprintf("%s/function-details", apiPath):
-		api.ViewFunctionMetrics(w, r)
-	case path == fmt.Sprintf("%s/reports", apiPath):
-		api.GetReportData(w, r)
-	default:
-		http.NotFound(w, r)
+	if handler := lookupAPIHandler(r.URL.Path, apiPath); handler != nil {
+		handler(w, r)
+		return
 	}
+	http.NotFound(w, r)
 }
 
 func routeToFiberAPIHandler(c *fiber.Ctx, path, apiPath string) error {
-	switch {
-	case path == fmt.Sprintf("%s/metrics", apiPath):
-		return handleFiberAPI(c, api.GetServiceStatistics)
-	case path == fmt.Sprintf("%s/service-info", apiPath):
-		return handleFiberAPI(c, api.GetServiceInfoAPI)
-	case path == fmt.Sprintf("%s/service-metrics", apiPath):
-		return handleFiberAPI(c, api.GetServiceMetricsFromStorage)
-	case path == fmt.Sprintf("%s/go-routines-stats", apiPath):
-		return handleFiberAPI(c, api.GetGoRoutinesStats)
-	case path == fmt.Sprintf("%s/function", apiPath):
-		return handleFiberAPI(c, api.GetFunctionTraceDetails)
-	case path == fmt.Sprintf("%s/function-details", apiPath):
-		return handleFiberAPI(c, api.ViewFunctionMetrics)
-	case path == fmt.Sprintf("%s/reports", apiPath):
-		return handleFiberAPI(c, api.GetReportData)
-	default:
-		c.Status(404).SendString("Not Found")
-		return nil
+	if handler := lookupAPIHandler(path, apiPath); handler != nil {
+		return handleFiberAPI(c, handler)
 	}
+	c.Status(404).SendString("Not Found")
+	return nil
 }
 
 func handleFiberAPI(c *fiber.Ctx, handler func(http.ResponseWriter, *http.Request)) error {
