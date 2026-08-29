@@ -3,13 +3,23 @@ package exporters
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/iyashjayesh/monigo/core"
+	"github.com/iyashjayesh/monigo/internal/exporter"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // MonigoCollector implements the prometheus.Collector interface.
+//
+// Prometheus pulls: MoniGo never exports to it, so the only honest status is
+// when it was last scraped and how often. scrapeMu guards those counters,
+// which Collect writes from whichever goroutine the registry scrapes on.
 type MonigoCollector struct {
+	scrapeMu    sync.Mutex
+	scrapeCount uint64
+	lastScrape  time.Time
+
 	cpuUsage    *prometheus.Desc
 	memoryUsage *prometheus.Desc
 	goroutines  *prometheus.Desc
@@ -69,6 +79,11 @@ func (c *MonigoCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (c *MonigoCollector) Collect(ch chan<- prometheus.Metric) {
+	c.scrapeMu.Lock()
+	c.scrapeCount++
+	c.lastScrape = time.Now()
+	c.scrapeMu.Unlock()
+
 	stats := core.GetServiceStats(context.Background())
 
 	// CPU Load - use raw float64 values directly, no string parsing
@@ -103,4 +118,21 @@ func (c *MonigoCollector) Collect(ch chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(stats.DiskIO.WriteBytes),
 	)
+}
+
+// ScrapeHealth reports how the Prometheus endpoint is being used.
+//
+// There is no failure counter: a scrape that fails, fails at the client, and
+// MoniGo never learns of it. Reporting a fabricated zero would imply a health
+// signal that does not exist, so the pull kind carries no failure fields and
+// the dashboard renders it as "scraped Ns ago" rather than a pass/fail verdict.
+func (c *MonigoCollector) ScrapeHealth() exporter.Health {
+	c.scrapeMu.Lock()
+	defer c.scrapeMu.Unlock()
+	return exporter.Health{
+		Name:        "prometheus",
+		Kind:        exporter.KindPull,
+		LastSuccess: c.lastScrape,
+		Total:       c.scrapeCount,
+	}
 }

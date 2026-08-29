@@ -60,8 +60,18 @@ func NewOTelExporter(ctx context.Context, cfg OTelConfig) (*OTelExporter, error)
 		return nil, err
 	}
 
+	// The reader's own interval is set far out because Export drives the push
+	// itself via ForceFlush.
+	//
+	// With a short interval there are two clocks: the pipeline calling Export
+	// and the reader shipping batches, each unaware of the other. Export would
+	// return nil the instant it stored a value and the real delivery -- and
+	// any error from it -- happened later on the reader's clock, out of reach.
+	// That made a dead collector indistinguishable from a healthy one: the
+	// dashboard reported "ok" while nothing arrived. One clock, and Export
+	// returns the transport's actual verdict.
 	provider := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(exporter, metric.WithInterval(30*time.Second))),
+		metric.WithReader(metric.NewPeriodicReader(exporter, metric.WithInterval(24*time.Hour))),
 	)
 	meter := provider.Meter("monigo")
 
@@ -91,7 +101,14 @@ func (o *OTelExporter) Export(ctx context.Context, metrics []*registry.MetricVal
 			logger.Log.Warn("histogram export not yet implemented", "metric", m.Name)
 		}
 	}
-	return firstErr
+	if firstErr != nil {
+		return firstErr
+	}
+
+	// Push now and report what the transport says. Without this the values sit
+	// in the SDK until the reader's next cycle, and Export would report
+	// success for a collector that is unreachable.
+	return o.provider.ForceFlush(ctx)
 }
 
 func (o *OTelExporter) exportGauge(m *registry.MetricValue) error {
@@ -175,4 +192,3 @@ func labelsToAttributes(labels map[string]string) []attribute.KeyValue {
 	}
 	return attrs
 }
-
