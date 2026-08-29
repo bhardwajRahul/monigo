@@ -1,7 +1,7 @@
 # Adopting the new dashboard design
 
-Source: `MoniGo Dashboard (1).html` (Claude Design canvas export, 598 KB
-bundled), reviewed and patched 2026-08-28. The corrected export is
+Source: `MoniGo Dashboard (1).html` (design canvas export, 598 KB bundled),
+reviewed and patched 2026-08-28. The corrected export is
 `MoniGo Dashboard (fixed).html`.
 
 Companion to [ROADMAP.md](ROADMAP.md) and
