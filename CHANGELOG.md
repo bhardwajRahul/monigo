@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **13 compiled example binaries are no longer tracked** -- 502 MB, 95% of the
+  repository. They were macOS arm64, so they could not run on Linux, Windows or
+  an Intel Mac and were unusable to almost everyone who downloaded them. Now
+  ignored by explicit path: they take the name of their directory and have no
+  extension, so none of `*.exe`, `*.dylib`, `/bin` or `*.test` ever matched,
+  and no glob can separate them from an extensionless source file.
+  `TestNoCompiledBinaryIsTracked` checks the magic number of every tracked file
+  instead. Existing clones keep their history until it is rewritten separately
+
 ### Added
 - **Exporters page.** Prometheus and OTel status, at
   `GET /monigo/api/v1/exporters` and in the dashboard nav. Push and pull are
