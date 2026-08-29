@@ -42,8 +42,23 @@ func calculateServiceHealth(stats *models.ServiceStats) (float64, string, bool, 
 		return 0, "", false, fmt.Errorf("failed to get service CPU usage: %w", err)
 	}
 
-	totalAvailableCores := stats.CPUStatistics.TotalCores
-	cpuUsagePercentage := (cpuUsage / float64(totalAvailableCores)) * 100
+	/*
+	 * getServiceCPUUsage returns percent of ONE core -- gopsutil follows the
+	 * `top` convention, where a process saturating two cores reads 200%. That
+	 * is already a percentage, and it is the same number the dashboard shows
+	 * under SERVICE CPU LOAD, which reads it from common.GetCPULoad.
+	 *
+	 * This used to be `(cpuUsage / TotalCores) * 100`. Dividing by the core
+	 * count converts to share-of-machine; the `* 100` then multiplied a value
+	 * that was already a percentage, inflating by 100/TotalCores -- 10x on a
+	 * 10-core host, 25x on a 4-core one, worst on the smallest machines. The
+	 * same measurement read 1.68% in load_statistics and 17.66% here.
+	 *
+	 * MaxCPUUsage is therefore read in the same units: a service that
+	 * saturates more than one core exceeds 100% by design, exactly as `top`
+	 * would report it.
+	 */
+	cpuUsagePercentage := cpuUsage
 
 	// Calculating memory usage percentage for the service
 	memoryUsagePercentage, err := calculateMemoryUsagePercentage(

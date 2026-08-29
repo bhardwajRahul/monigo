@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Service-health CPU was inflated by `100/TotalCores`.** `getServiceCPUUsage`
+  returns percent of one core -- the `top` convention gopsutil follows -- and
+  the health calculation divided it by the core count and then multiplied by
+  100, scaling a value that was already a percentage. The same measurement read
+  `1.68%` under SERVICE CPU LOAD and `17.66%` in the health message on a
+  10-core host; the error grows as machines get smaller, 25x on four cores. An
+  idle process measured **360% on one core** and **132% on four**, both over a
+  95% limit -- which, now that a breach is any single resource over its own
+  limit, was enough to report a healthy service as unhealthy. Both paths now
+  report percent of one core, and a test fails if the reading scales with core
+  count again
+
+### Fixed
 - **The health badge contradicted the sentence beside it, and flapped.**
   `Healthy` came from the composite score crossing 50, while the message under
   it came from a threshold comparison, and nothing kept the two in step: the
