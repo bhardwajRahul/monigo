@@ -9,18 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.5.0] - 2026-08-29
 
-### Security
-- **The dashboard no longer asserts its own privilege.** `authenticatedFetch`
-  attached `X-User-Role: admin` and a hardcoded `monigo-admin-secret` to every
-  request that carried no API key, both lifted from
-  `example/security-examples/custom-auth`, whose auth function grants access for
-  precisely those. A consumer following that documented example got a dashboard
-  that satisfied their own auth check on its own say-so. A browser cannot vouch
-  for itself; custom authentication belongs in the middleware
-- The API key moves from the query string to an `X-API-Key` header. As a query
-  parameter it was recorded in browser history, sent in the `Referer` to any
-  external link the page carried, and written to every access log in between.
-  `APIKeyMiddleware` already accepted both forms
+The dashboard rebuilt on the new design, and a set of measurements that
+were reporting things they had not measured. The security fix that landed
+alongside this work is in 1.4.1, released separately.
 
 ### Changed
 - **The dashboard was rebuilt on the new design.** A 226px rail carrying the
@@ -105,6 +96,25 @@ v2.0.0 invalid: should be v0 or v1, not v2"* -- so the same rule that stops the
 proxy serving the tag stops it being formally withdrawn. It is inert either way:
 `go get @latest` resolves to the newest v1, and `go list -m -versions` does not
 list it. It survives only on the GitHub releases page.
+
+## [1.4.1] - 2026-08-29
+
+Released on its own, ahead of the dashboard work, because none of it
+depends on that and a credential the dashboard hands itself should not
+wait behind a UI project.
+
+### Security
+- **The dashboard no longer asserts its own privilege.** `authenticatedFetch`
+  attached `X-User-Role: admin` and a hardcoded `monigo-admin-secret` to every
+  request that carried no API key, both lifted from
+  `example/security-examples/custom-auth`, whose auth function grants access for
+  precisely those. A consumer following that documented example got a dashboard
+  that satisfied their own auth check on its own say-so. A browser cannot vouch
+  for itself; custom authentication belongs in the middleware
+- The API key moves from the query string to an `X-API-Key` header. As a query
+  parameter it was recorded in browser history, sent in the `Referer` to any
+  external link the page carried, and written to every access log in between.
+  `APIKeyMiddleware` already accepted both forms
 
 ## [1.4.0] - 2026-08-28
 
