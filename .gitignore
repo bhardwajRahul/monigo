@@ -44,3 +44,25 @@ new_static_mockups/
 # accident, so every test run rewrote a tracked meta.json and left the working
 # tree dirty.
 monigo/
+
+# Compiled example programs.
+#
+# Each example is its own module and `go build ./...` drops a binary named
+# after its directory. These have no extension, so none of the patterns above
+# match them -- which is how 502 MB of Mach-O arm64 binaries ended up tracked,
+# unusable on Linux, Windows or an Intel Mac, and downloaded by everyone who
+# clones. Listed explicitly rather than by pattern, because no pattern can
+# tell a compiled binary from an extensionless source file.
+/example/function-trace-example/function-trace-example-monigo
+/example/monigo-example
+/example/router-integration/echo-integration/echo-integration-example
+/example/router-integration/fiber-integration/fiber-integration-example
+/example/router-integration/gin-integration/gin-integration-example
+/example/router-integration/gorilla-mux-integration/gorilla-mux-integration-example
+/example/router-integration/standard-mux-integration/standard-mux-integration-example
+/example/security-examples/api-key/api-key-example
+/example/security-examples/basic-auth/basic-auth-example
+/example/security-examples/chi/chi-secured-example
+/example/security-examples/custom-auth/custom-auth-example
+/example/security-examples/echo/echo-secured-example
+/example/security-examples/ip-whitelist-example/ip-whitelist-example
