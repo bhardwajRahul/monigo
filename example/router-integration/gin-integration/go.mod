@@ -26,6 +26,7 @@ require (
 	github.com/go-playground/validator/v10 v10.14.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gofiber/fiber/v2 v2.52.10 // indirect
+	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

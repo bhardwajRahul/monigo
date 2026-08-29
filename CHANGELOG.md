@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Profiling required the Go toolchain at runtime, so it was dead in
+  production.** The profile view shelled out to `go tool pprof`, and on any
+  distroless, scratch or alpine image -- nearly every production deployment of
+  a Go service -- `go` is not on `PATH`, so the dashboard showed
+  `Error: 'go' command not found` where the report should be. It also spawned a
+  subprocess per HTTP request. Profiles written by `runtime/pprof` are fully
+  symbolized, so they are now parsed in-process with
+  `github.com/google/pprof/profile`, which needs no binary, no source tree and
+  no toolchain. `os/exec` is gone from that path entirely
+- Annotated source (`pprof -list`) additionally needed the source tree the
+  binary was built from. The per-line sample counts come from the profile and
+  now always render; the source text is interleaved only where the file is
+  actually readable, and says so plainly where it is not
+- An empty profile rendered as an empty table, which reads as "this function
+  used no CPU". It now explains that the profiler samples at 100Hz and a call
+  shorter than that usually records nothing
+
+### Changed
+- `SetSamplingRate` and `WithSamplingRate` now document the cost of a sampled
+  call: `pprof.StopCPUProfile` blocks on the runtime's buffer flush for a
+  roughly constant ~200ms regardless of how long the function ran, measured at
+  201.8ms of overhead on a 1ms call. `ExecutionTime` is captured before the
+  stop, so the metric does not show it
+
 ### Changed
 - **13 compiled example binaries are no longer tracked** -- 502 MB, 95% of the
   repository. They were macOS arm64, so they could not run on Linux, Windows or
