@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	common.SetServiceInfo("test-service", time.Now(), runtime.Version(), 1234, "7d")
+	common.SetServiceInfo("test-service", time.Now(), runtime.Version(), 1234, "7d", "5m")
 	ConfigureServiceThresholds(&models.ServiceHealthThresholds{
 		MaxCPUUsage:    95,
 		MaxMemoryUsage: 95,

@@ -84,8 +84,10 @@
       <span class="mg-top__title">Overview</span>
       <span class="mg-top__sub" id="mg-asof"></span>
       <div class="mg-top__right">
-        <div class="mg-range" id="mg-range" role="group" aria-label="Chart time range">
-          <button type="button" class="mg-range-seg" data-range="5m" aria-pressed="false">5m</button>
+        <!-- No 5m window: at the default 5m sync interval it can never hold the
+         two samples a line needs, so it was an option that could only ever
+         show the empty state. -->
+    <div class="mg-range" id="mg-range" role="group" aria-label="Chart time range">
           <button type="button" class="mg-range-seg is-active" data-range="15m" aria-pressed="true">15m</button>
           <button type="button" class="mg-range-seg" data-range="1h" aria-pressed="false">1h</button>
           <button type="button" class="mg-range-seg" data-range="24h" aria-pressed="false">24h</button>

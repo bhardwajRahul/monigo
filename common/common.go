@@ -63,13 +63,14 @@ func GetDirSize(folderPath string) string {
 }
 
 // SetServiceInfo sets the service information.
-func SetServiceInfo(serviceName string, serviceStartTime time.Time, goVersion string, processId int32, retention string) {
+func SetServiceInfo(serviceName string, serviceStartTime time.Time, goVersion string, processId int32, retention string, syncFrequency string) {
 	serviceInfo.ServiceName = serviceName
 	serviceInfo.ServiceStartTime = serviceStartTime
 	serviceInfo.GoVersion = goVersion
 	serviceInfo.ProcessId = processId
 	// Read from build info rather than declared, so it cannot go stale.
 	serviceInfo.MonigoVersion = LibraryVersion()
+	serviceInfo.DataPointsSyncFrequency = syncFrequency
 	retentionPeriod = retention
 }
 
