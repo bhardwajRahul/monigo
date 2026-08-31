@@ -1,0 +1,3 @@
+# The embedded dashboard UI is a resource of this Go library, not its substance.
+# Keeps GitHub Linguist reporting monigo as the Go project it is.
+static/** linguist-vendored
